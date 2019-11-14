@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="isolation:isolate" viewBox="0 0 80 80" width="80px" height="80px">
+  <path d="M73 61v1c0 2.76-2.24 5-5 5H12c-2.76 0-5-2.24-5-5V26c0-2.76 2.24-5 5-5h3l5.5-10h17L43 21h25c2.76 0 5 2.24 5 5v21" fill="none" vector-effect="non-scaling-stroke" stroke-width="2" stroke="#000" stroke-linecap="square" stroke-miterlimit="3"/>
+  <path vector-effect="non-scaling-stroke" stroke-width="2" stroke="#000" stroke-linecap="square" stroke-miterlimit="3" d="M7 31h66"/>
+  <path d="M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z" fill="none" vector-effect="non-scaling-stroke" stroke-width="1.8" stroke="#000" stroke-linejoin="round" stroke-linecap="square" stroke-miterlimit="3"/>
+  <ellipse vector-effect="non-scaling-stroke" cx="70.484" cy="54" rx="2.484" ry="2.5" fill="none" stroke-width="1.8" stroke="#000" stroke-linecap="square" stroke-miterlimit="3"/>
+</svg>
