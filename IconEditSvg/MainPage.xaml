@@ -8,6 +8,21 @@
     xmlns:canvas ="using:Microsoft.Graphics.Canvas.UI.Xaml"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Page.Resources>
+        <DataTemplate x:Key="TreeViewItemDataTemplate">
+            <Grid Height="44">
+                <TextBlock Text="{Binding Content.DisplayName}"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Center"
+                           Style="{ThemeResource BodyTextBlockStyle}"/>
+            </Grid>
+        </DataTemplate>
+
+
+        <local:ExplorerItemTemplateSelector
+            x:Key="ExplorerItemTemplateSelector"
+            DefaultTemplate="{StaticResource TreeViewItemDataTemplate}"/>
+    </Page.Resources>
 
     <Grid>
         <Grid>
@@ -16,14 +31,14 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Border Grid.Row="0" BorderBrush="Aqua" BorderThickness="1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Name="TargetFolder" Text="フォルダを選択してください" Grid.Column="0" Margin="4,4,4,4" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" Click="Button_Click">フォルダ...</Button>
-            </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Name="TargetFolder" Text="フォルダを選択してください" Grid.Column="0" Margin="4,4,4,4" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Click="Button_Click">フォルダ...</Button>
+                </Grid>
             </Border>
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
@@ -35,9 +50,33 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="1*"/>
                         <RowDefinition Height="1*"/>
+                        <RowDefinition Height="1"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBox Name="svgText" TextWrapping="Wrap" Width="300" ScrollViewer.VerticalScrollBarVisibility="Auto" Grid.Row="0"/>
-                    <TreeView Name="SvgTreeView" Grid.Row="1"/>
+                    <TextBox Name="svgText" TextWrapping="Wrap" Width="300" ScrollViewer.VerticalScrollBarVisibility="Auto" Grid.Row="0" AcceptsReturn="True"/>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" Grid.Row="1">
+                        <TreeView x:Name="sampleTreeView" SelectionMode="Multiple"
+                              DragItemsStarting="SampleTreeView_DragItemsStarting"
+                              ItemTemplateSelector="{StaticResource ExplorerItemTemplateSelector}"
+                              ItemInvoked="SampleTreeView_ItemInvoked" RightTapped="SampleTreeView_RightTapped"/>
+                    </ScrollViewer>
+                    <Grid Height="1" Grid.Row="2" HorizontalAlignment="Stretch" Background="Silver"/>
+                    <Grid Grid.Row="3">
+                        <StackPanel Orientation="Vertical" Margin="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center" Margin="4,0,4,0">X</TextBlock>
+                                <TextBox Width="{StaticResource NumberWidth}" Text="0" TextAlignment="Right" AcceptsReturn="True"></TextBox>
+                                <Button>+</Button>
+                                <Button>-</Button>
+                                <TextBlock VerticalAlignment="Center" Margin="4,0,4,0">Y</TextBlock>
+                                <TextBox Width="{StaticResource NumberWidth}" Text="0" TextAlignment="Right" AcceptsReturn="True"></TextBox>
+                                <Button>+</Button>
+                                <Button>-</Button>
+                            </StackPanel>
+                            <TextBlock Margin="4">絶対値 X: Y: 相対値 X: Y:</TextBlock>
+                        </StackPanel>
+
+                    </Grid>
                 </Grid>
                 <Grid Grid.Column="1">
                     <Grid.RowDefinitions>
@@ -60,37 +99,84 @@
                                 <SymbolIcon Symbol="ZoomOut"/>
                             </AppBarButton.Icon>
                         </AppBarButton>
+                        <AppBarSeparator/>
+                        <AppBarButton Label="Save">
+                            <AppBarButton.Icon>
+                                <SymbolIcon Symbol="Save"/>
+                            </AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarSeparator/>
+                        <AppBarToggleButton Label="Draw" IsChecked="{x:Bind DrawMode,Mode=TwoWay}">
+                            <AppBarToggleButton.Icon>
+                                <SymbolIcon Symbol="Edit"/>
+                            </AppBarToggleButton.Icon>
+                        </AppBarToggleButton>
 
                     </StackPanel>
                     <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="1">
-                        <Grid>
-                            <canvas:CanvasControl Draw="CanvasControl_Draw" Name="MainCanvas"/>
-                            <Image x:Name="testimage" Width="100" Height="100"/>
+                        <Grid Name="EditCanvasGrid"  KeyDown="EditCanvas_KeyDown">
+                            <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
+                            <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>
+                            <canvas:CanvasControl Draw="MainCanvas_Draw" Name="MainCanvas" PointerMoved="MainCanvas_PointerMoved" PointerPressed="MainCanvas_PointerPressed" PointerReleased="MainCanvas_PointerReleased"/>
+                            <canvas:CanvasControl Name="EditCanvas" Draw="EditCanvas_Draw" Visibility="Collapsed"
+                                                  PointerPressed="EditCanvas_PointerPressed" PointerMoved="EditCanvas_PointerMoved" PointerReleased="EditCanvas_PointerReleased" 
+                                                  PointerCanceled="EditCanvas_PointerCanceled" PointerCaptureLost="EditCanvas_PointerCaptureLost" DoubleTapped="EditCanvas_DoubleTapped"
+                                                  KeyDown="EditCanvas_KeyDown" KeyUp="EditCanvas_KeyUp" IsTabStop="True">
+                            </canvas:CanvasControl>
                         </Grid>
                     </Border>
                 </Grid>
                 <Grid Grid.Column="2" VerticalAlignment="Top" Margin="4,4,4,4">
-
-                    <StackPanel Orientation="Vertical">
-                        <StackPanel Orientation="Horizontal">
-                            <Border BorderBrush="Silver" BorderThickness="1">
-                                <Grid Width="40" Height="40" Background="White" Margin="20,20,20,20">
-                                    <Image Name="Image40" Width="40" Height="40"/>
-                                </Grid>
-                            </Border>
-                            <Border BorderBrush="Silver" BorderThickness="1">
-                                <Grid Width="80" Height="80" Background="White">
-                                    <Image Name="Image80" Width="80" Height="80"/>
-                                </Grid>
-                            </Border>
-                        </StackPanel>
-                        <Border BorderBrush="Silver" BorderThickness="1">
-                            <Grid Width="320" Height="320" VerticalAlignment="Top" Margin="4,4,4,4">
-                                <canvas:CanvasControl Name="Magnification" Draw="Magnification_Draw" ClearColor="White"/>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border BorderBrush="Silver" BorderThickness="1" Grid.Column="0">
+                            <Grid Width="40" Height="40" Background="White" Margin="20,20,20,20">
+                                <Image Name="OrgImage100" Width="40" Height="40" Opacity=".5"/>
+                                <Image Name="Image40" Width="40" Height="40" Opacity="0.5"/>
                             </Grid>
                         </Border>
-                    </StackPanel>
+                        <Border BorderBrush="Silver" BorderThickness="1" Grid.Column="1">
+                            <Grid Width="80" Height="80" Background="White">
+                                <Image Name="OrgImage200" Width="80" Height="80" Opacity="0.5"/>
+                                <Image Name="Image80" Width="80" Height="80" Opacity="0.5"/>
+                            </Grid>
+                        </Border>
+                        <Slider Name="OpacitySlider" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="10,0,10,0" ValueChanged="Slider_ValueChanged"/>
 
+                    </Grid>
+                    <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="1">
+                        <Grid Width="320" Height="320" VerticalAlignment="Top" Margin="4,4,4,4">
+                            <canvas:CanvasControl Name="Magnification" Draw="Magnification_Draw"/>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Grid.Row="2">
+                        <ListView ItemsSource="{x:Bind ViewModel.Recordings}" Tapped="ListView_Tapped" Name="IconListView">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:Name="DoubleLineDataTemplate" x:DataType="local:PngFileItem">
+                                    <StackPanel Orientation="Horizontal" Height="64" AutomationProperties.Name="{x:Bind CompositionName}">
+                                        <Grid Background="Silver" Margin="2">
+                                            <Image Height="44" Width="44" VerticalAlignment="Center" Source="{x:Bind BitmapImage}">
+
+                                            </Image>
+                                        </Grid>
+                                        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="12,0,0,0">
+                                            <TextBlock Text="{x:Bind CompositionName}"  Style="{ThemeResource BaseTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseHighBrush}" />
+                                            <TextBlock Text="{x:Bind ReleaseDateTime}" Style="{ThemeResource BaseTextBlockStyle}" Opacity=".6" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </ScrollViewer>
                 </Grid>
 
             </Grid>
