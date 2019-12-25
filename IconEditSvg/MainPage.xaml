@@ -51,7 +51,6 @@
                         <RowDefinition Height="1*"/>
                         <RowDefinition Height="1*"/>
                         <RowDefinition Height="1"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBox Name="svgText" TextWrapping="Wrap" Width="300" ScrollViewer.VerticalScrollBarVisibility="Auto" Grid.Row="0" AcceptsReturn="True"/>
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" Grid.Row="1">
@@ -61,25 +60,10 @@
                               ItemInvoked="SampleTreeView_ItemInvoked" RightTapped="SampleTreeView_RightTapped"/>
                     </ScrollViewer>
                     <Grid Height="1" Grid.Row="2" HorizontalAlignment="Stretch" Background="Silver"/>
-                    <Grid Grid.Row="3">
-                        <StackPanel Orientation="Vertical" Margin="4">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock VerticalAlignment="Center" Margin="4,0,4,0">X</TextBlock>
-                                <TextBox Width="{StaticResource NumberWidth}" Text="0" TextAlignment="Right" AcceptsReturn="True"></TextBox>
-                                <Button>+</Button>
-                                <Button>-</Button>
-                                <TextBlock VerticalAlignment="Center" Margin="4,0,4,0">Y</TextBlock>
-                                <TextBox Width="{StaticResource NumberWidth}" Text="0" TextAlignment="Right" AcceptsReturn="True"></TextBox>
-                                <Button>+</Button>
-                                <Button>-</Button>
-                            </StackPanel>
-                            <TextBlock Margin="4">絶対値 X: Y: 相対値 X: Y:</TextBlock>
-                        </StackPanel>
-
-                    </Grid>
                 </Grid>
                 <Grid Grid.Column="1">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
@@ -100,7 +84,7 @@
                             </AppBarButton.Icon>
                         </AppBarButton>
                         <AppBarSeparator/>
-                        <AppBarButton Label="Save">
+                        <AppBarButton Label="Save" Click="AppBarSaveButton_Click">
                             <AppBarButton.Icon>
                                 <SymbolIcon Symbol="Save"/>
                             </AppBarButton.Icon>
@@ -113,7 +97,11 @@
                         </AppBarToggleButton>
 
                     </StackPanel>
-                    <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="1">
+                    <StackPanel Orientation="Vertical" Grid.Row="1">
+                        <Grid Height="1" Background="Silver" HorizontalAlignment="Stretch"/>
+                        <TextBlock x:Name="m_editTargetPos">座標</TextBlock>
+                    </StackPanel>
+                    <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="2">
                         <Grid Name="EditCanvasGrid"  KeyDown="EditCanvas_KeyDown">
                             <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
                             <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>

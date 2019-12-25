@@ -99,6 +99,9 @@ namespace IconEditSvg
             PressItemPartIndex = -1;
 
         }
+
+        public string FolderPath { get; internal set; }
+        public string FileName { get; internal set; }
     };
 
     public class Item
@@ -188,8 +191,8 @@ namespace IconEditSvg
         internal void FocusMove()
         {
             EditCanvas.Focus(FocusState.Keyboard);
-            var x = FocusManager.GetFocusedElement();
-            Debug.WriteLine(x.ToString());
+//            var x = FocusManager.GetFocusedElement();
+//            Debug.WriteLine(x.ToString());
         }
 #if false
         private void OrderButton_Click(object sender, RoutedEventArgs e)
@@ -245,10 +248,10 @@ namespace IconEditSvg
                         // まぁ選択状態解除みたいな。
                         m_path = null;
                         MainCanvas.Invalidate();
-                        viewInfo.TargetItemIndex = -1;
-                        viewInfo.TargetItemPartIndex = -1;
-                        viewInfo.PressItemIndex = -1;
-                        viewInfo.PressItemPartIndex = -1;
+                        m_viewInfo.TargetItemIndex = -1;
+                        m_viewInfo.TargetItemPartIndex = -1;
+                        m_viewInfo.PressItemIndex = -1;
+                        m_viewInfo.PressItemPartIndex = -1;
                     }
                     if (_makeLineDrawing != null)
                     {
@@ -260,7 +263,6 @@ namespace IconEditSvg
             }
         }
 
-
         private Command _menuCommand;
 
         string svgdata;
@@ -270,7 +272,8 @@ namespace IconEditSvg
         double _opacityValue = 50;
 
 
-        ViewInfo viewInfo;
+        ViewInfo m_viewInfo;
+        public ViewInfo Info { get { return m_viewInfo; } }
         XmlDocument m_svgXmlDoc;
 
         public MainPage()
@@ -284,7 +287,7 @@ namespace IconEditSvg
             //var task = testAsync();
             SetupCommand();
 
-            viewInfo = new ViewInfo();
+            m_viewInfo = new ViewInfo();
             
 
             OpacitySlider.Value = _opacityValue;
@@ -542,8 +545,8 @@ namespace IconEditSvg
             // 背景格子
             var color0 = Color.FromArgb(255, 191, 191, 191);
             var color1 = Color.FromArgb(255, 255, 255, 255);
-            float w = viewInfo.Width * viewInfo.Scale;
-            float h = viewInfo.Height * viewInfo.Scale;
+            float w = m_viewInfo.Width * m_viewInfo.Scale;
+            float h = m_viewInfo.Height * m_viewInfo.Scale;
             int x = (int)((sender.ActualWidth - w) / 2);
             int y = (int)((sender.ActualHeight - h) / 2);
             for (int r = 0; r < h; r += 8)
@@ -563,12 +566,12 @@ namespace IconEditSvg
         {
             if (OrgImageBytes != null)
             {
-                float vw = viewInfo.Width * viewInfo.Scale;
-                float vh = viewInfo.Height * viewInfo.Scale;
+                float vw = m_viewInfo.Width * m_viewInfo.Scale;
+                float vh = m_viewInfo.Height * m_viewInfo.Scale;
                 int x = (int)((sender.ActualWidth - vw) / 2);
                 int y = (int)((sender.ActualHeight - vh) / 2);
 
-                float w = viewInfo.Scale*2;
+                float w = m_viewInfo.Scale*2;
 
                 int cl = 40;
                 for (int row = 0; row < 40; row++)
@@ -609,10 +612,12 @@ namespace IconEditSvg
 
             args.DrawingSession.DrawImage(des);
 
-            float w = viewInfo.Width * viewInfo.Scale;
-            float h = viewInfo.Height * viewInfo.Scale;
+            float w = m_viewInfo.Width * m_viewInfo.Scale;
+            float h = m_viewInfo.Height * m_viewInfo.Scale;
             int x = (int)((sender.ActualWidth - w) / 2);
             int y = (int)((sender.ActualHeight - h) / 2);
+            m_viewInfo.OffsetX = x;
+            m_viewInfo.OffsetY = y;
 #if false
             // 背景格子
             var color0 = Color.FromArgb(255, 191, 191, 191);
@@ -630,27 +635,29 @@ namespace IconEditSvg
             //
             if (svgdata != null)
             {
-                args.DrawingSession.Transform = new Matrix3x2(viewInfo.Scale, 0, 0, viewInfo.Scale, x, y);
-                var doc = CanvasSvgDocument.LoadFromXml(sender, svgdata);
-                if (doc != null)
-                {
-                    SvgDocOrg = doc;
-                }
-                if (SvgDocOrg != null)
-                {
+                args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, x, y);
+                try {
+                    var doc = CanvasSvgDocument.LoadFromXml(sender, svgdata);
+                    if (doc != null)
+                    {
+                        SvgDocOrg = doc;
+                    }
+                    if (SvgDocOrg != null)
+                    {
 
-                    args.DrawingSession.DrawSvg(SvgDocOrg, new Size(viewInfo.Width, viewInfo.Height), 0, 0);
+                        args.DrawingSession.DrawSvg(SvgDocOrg, new Size(m_viewInfo.Width, m_viewInfo.Height), 0, 0);
+                    }
+                }
+                catch {
                 }
             }
             if (m_path != null)
             {
-                viewInfo.OffsetX = x;
-                viewInfo.OffsetY = y;
                 args.DrawingSession.Transform = new Matrix3x2(1, 0, 0, 1, x, y);
                 int index = 0;
                 foreach (SvgPathItem item in m_path)
                 {
-                    item.DrawAnchor(args.DrawingSession, viewInfo,index);
+                    item.DrawAnchor(args.DrawingSession, m_viewInfo,index);
                     /*
                     Point point = item.GetPoint();
                     point.X *= viewInfo.Scale;
@@ -668,7 +675,7 @@ namespace IconEditSvg
         private void EditCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
             if(_makeLineDrawing!=null)
-                _makeLineDrawing.Draw(args.DrawingSession, viewInfo);
+                _makeLineDrawing.Draw(args.DrawingSession, m_viewInfo);
             /*
             using (var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(args.DrawingSession))
             {
@@ -865,10 +872,10 @@ namespace IconEditSvg
         {
             UpdateEtc(true);
             svgdata = svgText.Text;
-            UpdateSvg();
+            UpdateSvgByText();
         }
 
-        void UpdateSvg()
+        void UpdateSvgByText()
         {
             bool success = false;
             try
@@ -885,8 +892,13 @@ namespace IconEditSvg
                 Debug.WriteLine(ex.ToString());
             }
             updateTree();
+            UpdateSvg(success);
+        }
+
+        void UpdateSvg(bool success)
+        {
             MainCanvas.Invalidate();
-            _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async() => {
+            _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () => {
                 WriteableBitmap i40 = null;
                 WriteableBitmap i80 = null;
                 if (success)
@@ -1034,13 +1046,13 @@ namespace IconEditSvg
                     int index = 0;
                     int partindex = -1;
                     var pos = ptrPt.Position;
-                    pos.X -= viewInfo.OffsetX;
-                    pos.Y -= viewInfo.OffsetY;
+                    pos.X -= m_viewInfo.OffsetX;
+                    pos.Y -= m_viewInfo.OffsetY;
                     //Debug.WriteLine("x;{0} y:{1}",pos.X,pos.Y);
                     foreach (SvgPathItem item in m_path)
                     {
                         //   item.DrawAnchor(args.DrawingSession, viewInfo.Scale);
-                        partindex = item.HitTest(pos, viewInfo.Scale);
+                        partindex = item.HitTest(pos, m_viewInfo.Scale);
                         if (partindex >= 0)
                         {
                             break;
@@ -1052,10 +1064,10 @@ namespace IconEditSvg
                     {
                         case MouseEventKind.Move:
                             {
-                                if (viewInfo.HoverItemIndex >= 0 || partindex >= 0)
+                                if (m_viewInfo.HoverItemIndex >= 0 || partindex >= 0)
                                 {
-                                    viewInfo.HoverItemIndex = index;
-                                    viewInfo.HoverItemPartIndex = partindex;
+                                    m_viewInfo.HoverItemIndex = index;
+                                    m_viewInfo.HoverItemPartIndex = partindex;
                                     MainCanvas.Invalidate();
                                 }
                                 break;
@@ -1064,32 +1076,35 @@ namespace IconEditSvg
                             {
                                 if (partindex >= 0)
                                 {
-                                    viewInfo.PressItemIndex = index;
-                                    viewInfo.PressItemPartIndex = partindex;
+                                    m_viewInfo.PressItemIndex = index;
+                                    m_viewInfo.PressItemPartIndex = partindex;
 
                                 }
                                 else
                                 {
-                                    viewInfo.PressItemIndex = -1;
-                                    viewInfo.PressItemPartIndex = -1;
+                                    m_viewInfo.PressItemIndex = -1;
+                                    m_viewInfo.PressItemPartIndex = -1;
                                 }
                                 break;
                             }
                         case MouseEventKind.Release:
                             {
-                                if (partindex >= 0 && viewInfo.PressItemIndex == index && viewInfo.PressItemPartIndex == partindex)
+                                if (partindex >= 0 && m_viewInfo.PressItemIndex == index && m_viewInfo.PressItemPartIndex == partindex)
                                 {
-                                    viewInfo.TargetItemIndex = index;
-                                    viewInfo.TargetItemPartIndex = partindex;
+                                    m_viewInfo.TargetItemIndex = index;
+                                    m_viewInfo.TargetItemPartIndex = partindex;
                                     MainCanvas.Invalidate();
                                 }
-                                else if(viewInfo.TargetItemIndex>=0) {
-                                    viewInfo.TargetItemIndex = -1;
-                                    viewInfo.TargetItemPartIndex = -1;
+                                else if(m_viewInfo.TargetItemIndex>=0) {
+                                    m_viewInfo.TargetItemIndex = -1;
+                                    m_viewInfo.TargetItemPartIndex = -1;
                                     MainCanvas.Invalidate();
                                 }
-                                viewInfo.PressItemIndex = -1;
-                                viewInfo.PressItemPartIndex = -1;
+                                m_viewInfo.PressItemIndex = -1;
+                                m_viewInfo.PressItemPartIndex = -1;
+
+                                UpdateCordinateInfo();
+
                                 break;
                             }
                     }
@@ -1097,6 +1112,23 @@ namespace IconEditSvg
                 }
             }
             e.Handled = true;
+        }
+
+        private void UpdateCordinateInfo()
+        {
+            //
+
+            var index = m_viewInfo.TargetItemIndex;//
+            var partIndex = m_viewInfo.TargetItemPartIndex; // 
+            if (index >= 0)
+            {
+                var item = m_path[index];
+                m_editTargetPos.Text = string.Format("座標 {0} {1} {2} ", item.Command, item.GetPoint().X, item.GetPoint().Y);
+                return;
+            }
+
+            m_editTargetPos.Text = string.Format("座標");
+            
         }
 
         MakeLineDrawing _makeLineDrawing;
@@ -1134,8 +1166,8 @@ namespace IconEditSvg
         private void EditCanvas_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             var pos = e.GetPosition(MainCanvas);
-            pos.X -= viewInfo.OffsetX;
-            pos.Y -= viewInfo.OffsetY;
+            pos.X -= m_viewInfo.OffsetX;
+            pos.Y -= m_viewInfo.OffsetY;
             if (_makeLineDrawing == null)
             {
                 _makeLineDrawing = new MakeLineDrawing(this);
@@ -1153,8 +1185,8 @@ namespace IconEditSvg
                 var ptrPt = e.GetCurrentPoint(MainCanvas);
                 {
                     var pos = ptrPt.Position;
-                    pos.X -= viewInfo.OffsetX;
-                    pos.Y -= viewInfo.OffsetY;
+                    pos.X -= m_viewInfo.OffsetX;
+                    pos.Y -= m_viewInfo.OffsetY;
                     if (_makeLineDrawing == null) {
                         _makeLineDrawing = new MakeLineDrawing(this);
                     }
@@ -1305,6 +1337,7 @@ namespace IconEditSvg
                 {
                     string path = o.FullPath;
                     string folder = System.IO.Path.GetDirectoryName(path);
+                    m_viewInfo.FolderPath = folder;
                     string name0 = Path.GetFileName(path);
                     string name1 = null;
                     int num = name0.IndexOf(".scale-100");
@@ -1315,6 +1348,7 @@ namespace IconEditSvg
                     try
                     {
                         string[] spliststr = name0.Split('.');
+                        m_viewInfo.FileName = spliststr[0];
                         var file = await CmUtils.FindFileAsync(folder, spliststr[0], "svg");
                         if (file != null)
                         {
@@ -1363,7 +1397,8 @@ namespace IconEditSvg
                     _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
                     {
                         var appView = Windows.UI.ViewManagement.ApplicationView.GetForCurrentView();
-                        appView.Title = o.FullPath;
+                        //appView.Title = o.FullPath;
+                        appView.Title = m_viewInfo.FolderPath + " " + m_viewInfo.FileName;
 
                         PngFile100 = null;
                         PngFile200 = null;
@@ -1407,9 +1442,9 @@ namespace IconEditSvg
                         }
                         
                         
-                        RefCanvas.Invalidate();
+                        RefCanvas.Invalidate(); // いらない多分、後で見る
 
-                        UpdateSvg();
+                        UpdateSvgByText();
                         
 
                     }));
@@ -1434,6 +1469,99 @@ namespace IconEditSvg
             EditCanvas.Invalidate();
         }
 
+
+
+        /// <summary>
+        /// パスの作成
+        /// </summary>
+        /// <param name="points"></param>
+        internal void CreatePath(List<DrawingPoint> points, bool close)
+        {
+            if (points == null || points.Count < 1) return;
+            string path = "";
+            DrawingPoint befor = null;
+            for (int ix = 0; ix < points.Count; ix++)
+            {
+                var p = points[ix];
+                var pt = p.getPoint();
+                if (ix == 0)
+                {
+                    path = "M " + v2s(pt);
+                }
+                else if (!p.IsHaveControlPoint && !befor.IsHaveControlPoint)
+                {
+                    path = path + " L " + v2s(pt);
+                }
+                else
+                {
+                    var b = befor.getControlPoint(false);
+                    var c = p.getControlPoint(true);
+                    path = path + " C " + v2s(b) + v2s(c) + v2s(pt);
+                }
+
+                befor = p;
+                //path = path+p.
+            }
+            if (close)
+            {
+                path = path + "z";
+            }
+            else
+            {
+            }
+            System.Diagnostics.Debug.WriteLine(path);
+            var childElement = m_svgXmlDoc.CreateElement("path");
+            childElement.SetAttribute("d", path);
+            childElement.SetAttribute("stroke", "#000");
+            childElement.SetAttribute("stroke-width", "2");
+            childElement.SetAttribute("fill", "none");
+
+
+            var root = m_svgXmlDoc.DocumentElement;
+            root.AppendChild(childElement);
+            // 画面更新
+            svgdata = m_svgXmlDoc.GetXml();
+            svgText.Text = svgdata;
+            updateTree();
+            UpdateSvg(true);
+        }
+
+
+        string v2s(Vector2 v)
+        {
+            float x = (v.X)/m_viewInfo.Scale;
+            float y = (v.Y)/m_viewInfo.Scale;
+            return string.Format("{0:0.00} {1:0.00} ", x, y);
+        }
+
+
+        private void AppBarSaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (m_svgXmlDoc != null)
+            {
+                if (m_viewInfo.FolderPath == null || m_viewInfo.FileName == null) return;
+                Task.Run(async () => { 
+                try
+                {
+                        string filename = m_viewInfo.FileName + ".svg";
+                        var file = await CmUtils.FindFileAsync(m_viewInfo.FolderPath, m_viewInfo.FileName, "svg");
+                        if (file != null)
+                        {
+                        }
+                        StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(m_viewInfo.FolderPath);
+                        file = await folder.CreateFileAsync(filename,CreationCollisionOption.GenerateUniqueName);
+                        if (file!=null) {
+                            await m_svgXmlDoc.SaveToFileAsync(file);
+                        }
+
+                    }
+                    catch (Exception)
+                {
+                }
+                });
+
+            }
+        }
     }
 
 
@@ -1589,6 +1717,8 @@ namespace IconEditSvg
 
             return svgPathItems;
         }
+
+
     }
 
     class SvgPathItem
@@ -1944,6 +2074,8 @@ namespace IconEditSvg
 
             return false;
         }
+
+
 
     }
 }

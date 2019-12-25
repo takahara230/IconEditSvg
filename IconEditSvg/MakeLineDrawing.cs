@@ -158,10 +158,16 @@ namespace IconEditSvg
             this._mainPage = mainPage;
         }
 
+        /// <summary>
+        /// マウスイベント
+        /// </summary>
+        /// <param name="kind"></param>
+        /// <param name="pos"></param>
         internal void PointerEvent(MouseEventKind kind, Vector2 pos)
         {
             if (_points == null)
                 _points = new List<DrawingPoint>();
+            pos = snapPos(pos);
             switch (kind)
             {
                 case MouseEventKind.Press:
@@ -210,13 +216,52 @@ namespace IconEditSvg
                     {
                         statePress = false;
                         pressPoint = null;
+                        if (_points != null && _points.Count >= 3) {
+                            var p0 = _points[0].getPoint();
+                            var p1 = _points[_points.Count-1].getPoint();
+                            if (p0 == p1) {
+                                _mainPage.CreatePath(_points,true);
+                                CancelEvent();
+                            }
+                        }
                         Invalidate();
                     }
                     break;
                 case MouseEventKind.Double:
+                    _mainPage.CreatePath(_points,false);
                     CancelEvent();
                     break;
             }
+        }
+
+
+
+        Vector2 snapPos(Vector2 pos)
+        {
+            if (_points != null && _points.Count > 0)
+            {
+                int max = _points.Count;
+                if (!statePress) max--;
+                for(int index=0; index < max; index++) {
+                    var p = _points[index];
+                    var t = p.getPoint();
+                    if (IsNear(t,pos)) {
+                        return t;
+                    }
+
+                }
+            }
+            var scale = _mainPage.Info.Scale;
+
+            pos.X = MathF.Round((pos.X - scale) / (scale * 2)) * scale * 2 + scale;
+            pos.Y = MathF.Round((pos.Y - scale) / (scale * 2)) * scale * 2 + scale;
+
+            return pos;
+        }
+
+        public static bool IsNear(Vector2 p0, Vector2 p1)
+        {
+            return MathF.Pow(p0.X - p1.X, 2.0f) + MathF.Pow(p0.Y - p1.Y, 2.0f) <= 16.0;
         }
 
         internal void CancelEvent()
@@ -250,6 +295,7 @@ namespace IconEditSvg
             //            if (_points != null && _points.Count > 0)
             if (_points != null && _points.Count > 0)
             {
+                ds.Transform = new Matrix3x2(1, 0, 0, 1, viewInfo.OffsetX, viewInfo.OffsetY);
                 if (_points.Count > 1 || !statePress)
                 {
                     var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(ds);
