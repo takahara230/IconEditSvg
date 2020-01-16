@@ -102,6 +102,7 @@ namespace IconEditSvg
 
         public string FolderPath { get; internal set; }
         public string FileName { get; internal set; }
+        public SvgEditData TargetItem { get; internal set; }
     };
 
     public class Item
@@ -280,7 +281,7 @@ namespace IconEditSvg
         {
             DataContext = this;
             this.InitializeComponent();
-            Window.Current.CoreWindow.KeyDown += CoreWindow_KeyDown;
+//            Window.Current.CoreWindow.KeyDown += CoreWindow_KeyDown;
 
 
             this.Loaded += MainPage_Loaded;
@@ -320,16 +321,30 @@ namespace IconEditSvg
             }
 
         }
-
+        /*
         private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Core.KeyEventArgs args)
         {
-            switch (args.VirtualKey) {
-                case Windows.System.VirtualKey.Escape:
-                    _makeLineDrawing.CancelEvent();
-                    break;
+            if (_makeLineDrawing != null)
+            {
+                switch (args.VirtualKey)
+                {
+                    case Windows.System.VirtualKey.Escape:
+                        _makeLineDrawing.CancelEvent();
+                        break;
+                }
+            }
+            else
+            {
+                if (Info.TargetItemIndex >= 0) {
+                    switch (args.VirtualKey)
+                    {
+                        case Windows.System.VirtualKey.Up:
+                            break;
+                    }
+                }
             }
         }
-
+        */
         public RecordingViewModel ViewModel { get; set; }
 
 
@@ -971,10 +986,6 @@ namespace IconEditSvg
 
         private void FillTreeNode(TreeViewNode node)
         {
-            // Get the contents of the folder represented by the current tree node.
-            // Add each item as a new child node of the node that's being expanded.
-
-            // Only process the node if it's a folder and has unrealized children.
             SvgEditData folder = null;
 
             if (node.Content is SvgEditData && node.HasUnrealizedChildren == true)
@@ -983,7 +994,6 @@ namespace IconEditSvg
             }
             else
             {
-                // The node isn't a folder, or it's already been filled.
                 return;
             }
 
@@ -991,8 +1001,6 @@ namespace IconEditSvg
 
             if (itemsList.Count == 0)
             {
-                // The item is a folder, but it's empty. Leave HasUnrealizedChildren = true so
-                // that the chevron appears, but don't try to process children that aren't there.
                 return;
             }
 
@@ -1074,6 +1082,7 @@ namespace IconEditSvg
                             }
                         case MouseEventKind.Press:
                             {
+                                Edit_ScrollViewer.Focus(FocusState.Programmatic);
                                 if (partindex >= 0)
                                 {
                                     m_viewInfo.PressItemIndex = index;
@@ -1104,6 +1113,7 @@ namespace IconEditSvg
                                 m_viewInfo.PressItemPartIndex = -1;
 
                                 UpdateCordinateInfo();
+                                EditCanvas.Focus(FocusState.Keyboard);
 
                                 break;
                             }
@@ -1123,12 +1133,36 @@ namespace IconEditSvg
             if (index >= 0)
             {
                 var item = m_path[index];
-                m_editTargetPos.Text = string.Format("座標 {0} {1} {2} ", item.Command, item.GetPoint().X, item.GetPoint().Y);
+                string info = item.GetInfo(partIndex);
+                m_editTargetPos.Text = info;
+
                 return;
             }
 
             m_editTargetPos.Text = string.Format("座標");
             
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        void ValueChange(float x, float y)
+        {
+            var index = m_viewInfo.TargetItemIndex;//
+            var partIndex = m_viewInfo.TargetItemPartIndex; // 
+            if (index >= 0)
+            {
+                var item = m_path[index];
+                item.ValueChange(partIndex, x, y);
+
+                m_viewInfo.TargetItem.UpdateElement(m_path);
+                svgdata = m_svgXmlDoc.GetXml();
+                svgText.Text = svgdata;
+                updateTree();
+                UpdateSvg(true);
+                UpdateCordinateInfo();
+            }
         }
 
         MakeLineDrawing _makeLineDrawing;
@@ -1194,7 +1228,7 @@ namespace IconEditSvg
                 }
             }
         }
-
+        /*
         private void EditCanvas_KeyUp(object sender, KeyRoutedEventArgs e)
         {
             switch (e.Key)
@@ -1203,7 +1237,7 @@ namespace IconEditSvg
                     break;
             }
         }
-
+        */
         private void EditCanvas_KeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (_makeLineDrawing != null)
@@ -1213,6 +1247,33 @@ namespace IconEditSvg
                     case Windows.System.VirtualKey.Escape:
                         _makeLineDrawing.CancelEvent();
                         break;
+                    case Windows.System.VirtualKey.Up:
+                        break;
+                    case Windows.System.VirtualKey.Down:
+                        break;
+                }
+            }
+            else
+            {
+                if (Info.TargetItemIndex >= 0)
+                {
+                    float s = 0.1f;
+                    switch (e.Key)
+                    {
+                        case Windows.System.VirtualKey.Up:
+                            ValueChange(0, -s);
+                            break;
+                        case Windows.System.VirtualKey.Down:
+                            ValueChange(0,s);
+                            break;
+                        case Windows.System.VirtualKey.Left:
+                            ValueChange(-s, 0);
+                            break;
+                        case Windows.System.VirtualKey.Right:
+                            ValueChange(s, 0);
+                            break;
+                    }
+
                 }
             }
         }
@@ -1226,6 +1287,7 @@ namespace IconEditSvg
             if (node.Content is SvgEditData item)
             {
                 //node.IsExpanded = !node.IsExpanded;
+                m_viewInfo.TargetItem = item;
                 m_path = item.GetPathData();
                 MainCanvas.Invalidate();
             }
@@ -1651,7 +1713,6 @@ namespace IconEditSvg
                     var data = element.Attributes.GetNamedItem("d");
                     if (data != null)
                     {
-                        System.Diagnostics.Debug.WriteLine("");
                         return ParsePath(data.InnerText);
                     }
                 }
@@ -1694,12 +1755,12 @@ namespace IconEditSvg
                             item.SetNum(num);
                             num = "";
                         }
-                        if (item != null)
-                        {
-                            svgPathItems.Add(item);
-                        }
                         if (c != ' ' && c != ',')
                         {
+                            if (item != null)
+                            {
+                                svgPathItems.Add(item);
+                            }
                             item = SvgPathItem.Create(c, item);
                         }
                         break;
@@ -1716,6 +1777,16 @@ namespace IconEditSvg
             }
 
             return svgPathItems;
+        }
+
+        internal void UpdateElement(List<SvgPathItem> items)
+        {
+            string path = "";
+            foreach (var item in items) {
+                path = path + item.Encode();
+            }
+
+            element.SetAttribute("d",path);
         }
 
 
@@ -1864,7 +1935,7 @@ namespace IconEditSvg
         /// </summary>
         /// <param name="win2d"></param>
         /// <param name="scale"></param>
-        internal void DrawAnchor(CanvasDrawingSession win2d, ViewInfo viewInfo,int myIndex)
+        internal void DrawAnchor(CanvasDrawingSession win2d, ViewInfo viewInfo, int myIndex)
         {
             float scale = viewInfo.Scale;
             switch (Command)
@@ -1927,7 +1998,7 @@ namespace IconEditSvg
             }
         }
 
-        private void DrawAnchorSub(CanvasDrawingSession win2d, ViewInfo viewInfo, int myIndex,int partIndex,float x,float y)
+        private void DrawAnchorSub(CanvasDrawingSession win2d, ViewInfo viewInfo, int myIndex, int partIndex, float x, float y)
         {
             bool ellipse = true;
             switch (Command)
@@ -1972,7 +2043,7 @@ namespace IconEditSvg
             }
             else
             {
-                Rect r = new Rect(x - size, y - size, size*2, size*2);
+                Rect r = new Rect(x - size, y - size, size * 2, size * 2);
                 if (fill)
                 {
                     win2d.FillRectangle(r, color);
@@ -1987,7 +2058,7 @@ namespace IconEditSvg
         }
 
 
-        internal int HitTest(Point mousePoint,float scale)
+        internal int HitTest(Point mousePoint, float scale)
         {
             switch (Command)
             {
@@ -2003,7 +2074,8 @@ namespace IconEditSvg
                     {
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
-                        if ( IsNear(x,y,mousePoint.X,mousePoint.Y)){
+                        if (IsNear(x, y, mousePoint.X, mousePoint.Y))
+                        {
                             return index;
                         }
                         index++;
@@ -2067,7 +2139,7 @@ namespace IconEditSvg
             return -1;
         }
 
-        bool IsNear(double x0,double y0,double x1,double y1)
+        bool IsNear(double x0, double y0, double x1, double y1)
         {
             if (Math.Pow(x0 - x1, 2) + Math.Pow(y0 - y1, 2) < 16)
                 return true;
@@ -2075,7 +2147,97 @@ namespace IconEditSvg
             return false;
         }
 
+        public string GetInfo(int partIndex)
+        {
+            string label = "座標";
+            Point p = points[0];
+            switch (Command)
+            {
+                case 'C':
+                case 'c':
+                    {
+                        if (points.Count == 3)
+                        {
+                            p = points[2];
+                            if (partIndex == 2)
+                            {
+                                label = string.Format("座標 {0} {1:0.00} {2:0.00} ", Command, p.X, p.Y);
+                            }
+                            else if (partIndex == 0)
+                            {
+                                p = befor.GetPoint();
+                                Point c = points[0];
+                                c.X = c.X - p.X;
+                                c.Y = c.Y - p.Y;
+                                double r = Math.Sqrt(c.X * c.X + c.Y * c.Y) / 0.5522847;
+                                label = string.Format("座標 {0} {1:0.00} {2:0.00} c1 {3:0.00} {4:0.00} r:{5:0.00} ", Command, p.X, p.Y, c.X, c.Y, r);
+                            }
+                            else
+                            {
+                                Point c = points[1];
+                                c.X = c.X - p.X;
+                                c.Y = c.Y - p.Y;
+                                double r = Math.Sqrt(c.X * c.X + c.Y * c.Y) / 0.5522847;
+                                label = string.Format("座標 {0} {1:0.00} {2:0.00} c1 {3:0.00} {4:0.00} r:{5:0.00} ", Command, p.X, p.Y, c.X, c.Y, r);
+                            }
+                        }
+                        break;
 
+                    }
+                default:
+                    return string.Format("座標 {0} {1:0.00} {2:0.00} ", Command, p.X, p.Y);
+            }
+            return label;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="partIndex"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        internal void ValueChange(int partIndex, float x, float y)
+        {
+            switch (Command)
+            {
+                case 'C':
+                case 'c':
+                    {
+                        if (points.Count == 3)
+                        {
+                            Point p = points[partIndex];
+                            p.X += x;
+                            p.Y += y;
+                            points[partIndex]=p;
+                        }
+                        break;
+                    }
+                case 'l':
+                case 'L':
+                    {
+                        Point p = points[0];
+                        p.X += x;
+                        p.Y += y;
+                        points[0] = p;
+                        break;
+                    }
+            }
+        }
 
+        internal string Encode()
+        {
+            string path = "";
+            var c = Command;
+            c = Char.ToUpper(c);
+            if(c=='V' || c== 'H'){
+                c  = 'L';
+            }
+            path = path + c;
+            foreach (Point point in points)
+            {
+                path = path + string.Format("{0:0.00} {1:0.00} ", point.X,point.Y);
+            }
+
+            return path;
+        }
     }
 }

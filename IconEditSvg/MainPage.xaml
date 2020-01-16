@@ -102,16 +102,20 @@
                         <TextBlock x:Name="m_editTargetPos">座標</TextBlock>
                     </StackPanel>
                     <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="2">
-                        <Grid Name="EditCanvasGrid"  KeyDown="EditCanvas_KeyDown">
+                        <ScrollViewer x:Name="Edit_ScrollViewer" IsTabStop="True" KeyDown="EditCanvas_KeyDown">
+                            <Grid>
                             <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
                             <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>
                             <canvas:CanvasControl Draw="MainCanvas_Draw" Name="MainCanvas" PointerMoved="MainCanvas_PointerMoved" PointerPressed="MainCanvas_PointerPressed" PointerReleased="MainCanvas_PointerReleased"/>
                             <canvas:CanvasControl Name="EditCanvas" Draw="EditCanvas_Draw" Visibility="Collapsed"
                                                   PointerPressed="EditCanvas_PointerPressed" PointerMoved="EditCanvas_PointerMoved" PointerReleased="EditCanvas_PointerReleased" 
                                                   PointerCanceled="EditCanvas_PointerCanceled" PointerCaptureLost="EditCanvas_PointerCaptureLost" DoubleTapped="EditCanvas_DoubleTapped"
-                                                  KeyDown="EditCanvas_KeyDown" KeyUp="EditCanvas_KeyUp" IsTabStop="True">
+                          
+                          
+                                                  >
                             </canvas:CanvasControl>
-                        </Grid>
+                            </Grid>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
                 <Grid Grid.Column="2" VerticalAlignment="Top" Margin="4,4,4,4">
