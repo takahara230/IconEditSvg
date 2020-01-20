@@ -8,7 +8,9 @@ using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Geometry;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Windows.Foundation;
+using Windows.System;
 using Windows.UI;
+using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Input;
 
@@ -238,6 +240,7 @@ namespace IconEditSvg
 
         Vector2 snapPos(Vector2 pos)
         {
+            // 近いポイントがあれば吸着
             if (_points != null && _points.Count > 0)
             {
                 int max = _points.Count;
@@ -251,18 +254,45 @@ namespace IconEditSvg
 
                 }
             }
-            var scale = _mainPage.Info.Scale;
+            if (IsShiftKeyPressed) {
+                var scale = _mainPage.Info.Scale;
 
-            pos.X = MathF.Round((pos.X - scale) / (scale * 2)) * scale * 2 + scale;
-            pos.Y = MathF.Round((pos.Y - scale) / (scale * 2)) * scale * 2 + scale;
+                pos.X = MathF.Round((pos.X - scale) / (scale /10)) * scale /10 + scale;
+                pos.Y = MathF.Round((pos.Y - scale) / (scale /10)) * scale /10 + scale;
 
-            return pos;
+                return pos;
+            }
+            else
+            {
+                // 奇数座標にスナップ(100dpiでの直線がピクセル上に来るように)
+                var scale = _mainPage.Info.Scale;
+
+                pos.X = MathF.Round((pos.X - scale) / (scale * 2)) * scale * 2 + scale;
+                pos.Y = MathF.Round((pos.Y - scale) / (scale * 2)) * scale * 2 + scale;
+
+                return pos;
+
+            }
         }
 
         public static bool IsNear(Vector2 p0, Vector2 p1)
         {
             return MathF.Pow(p0.X - p1.X, 2.0f) + MathF.Pow(p0.Y - p1.Y, 2.0f) <= 16.0;
         }
+
+        private bool IsShiftKeyPressed
+        {
+            get
+            {
+                var state = Window.Current.CoreWindow.GetKeyState(VirtualKey.Shift);
+                if ((state & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down)
+                {
+                    return true;
+                }
+                return false;
+            }
+        }
+
 
         internal void CancelEvent()
         {

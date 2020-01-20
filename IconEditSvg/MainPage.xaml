@@ -36,7 +36,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Name="TargetFolder" Text="フォルダを選択してください" Grid.Column="0" Margin="4,4,4,4" VerticalAlignment="Center"/>
+                    <TextBlock Name="TargetFolder" Text="" Grid.Column="0" Margin="4,4,4,4" VerticalAlignment="Center"/>
                     <Button Grid.Column="1" Click="Button_Click">フォルダ...</Button>
                 </Grid>
             </Border>
@@ -73,14 +73,14 @@
                                 <SymbolIcon Symbol="Accept"/>
                             </AppBarButton.Icon>
                         </AppBarButton>
-                        <AppBarButton Label="ZoomIn">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="ZoomIn"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarButton Label="ZoomOut">
+                        <AppBarButton Label="ZoomOut" Click="AppBarZoomOutButton_Click">
                             <AppBarButton.Icon>
                                 <SymbolIcon Symbol="ZoomOut"/>
+                            </AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton Label="ZoomIn" Click="AppBarZoomInButton_Click">
+                            <AppBarButton.Icon>
+                                <SymbolIcon Symbol="ZoomIn"/>
                             </AppBarButton.Icon>
                         </AppBarButton>
                         <AppBarSeparator/>
@@ -102,8 +102,8 @@
                         <TextBlock x:Name="m_editTargetPos">座標</TextBlock>
                     </StackPanel>
                     <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="2">
-                        <ScrollViewer x:Name="Edit_ScrollViewer" IsTabStop="True" KeyDown="EditCanvas_KeyDown">
-                            <Grid>
+                        <ScrollViewer x:Name="Edit_ScrollViewer" IsTabStop="True" KeyDown="EditCanvas_KeyDown" Background="#ff0f0f0f" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <Grid x:Name="EditBase_Grid">
                             <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
                             <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>
                             <canvas:CanvasControl Draw="MainCanvas_Draw" Name="MainCanvas" PointerMoved="MainCanvas_PointerMoved" PointerPressed="MainCanvas_PointerPressed" PointerReleased="MainCanvas_PointerReleased"/>

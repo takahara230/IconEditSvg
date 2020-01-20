@@ -33,6 +33,8 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Windows.UI.Input;
 using Microsoft.Graphics.Canvas.Geometry;
+using Windows.UI.Core;
+using Windows.System;
 
 
 
@@ -550,6 +552,30 @@ namespace IconEditSvg
 
 
 #endif
+
+        void CalcViewPos()
+        {
+            double aw = Edit_ScrollViewer.ActualWidth;
+            double ah = Edit_ScrollViewer.ActualHeight;
+
+            float w = m_viewInfo.Width * m_viewInfo.Scale;
+            float h = m_viewInfo.Height * m_viewInfo.Scale;
+            if (w + 100 > aw)
+            {
+            }
+            else
+            {
+                int x = (int)((aw - w) / 2);
+                m_viewInfo.OffsetX = x;
+            }
+            if (h + 100 > ah) {
+            }
+            else {
+                int y = (int)((Edit_ScrollViewer.ActualHeight - h) / 2);
+                m_viewInfo.OffsetY = y;
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -560,10 +586,11 @@ namespace IconEditSvg
             // 背景格子
             var color0 = Color.FromArgb(255, 191, 191, 191);
             var color1 = Color.FromArgb(255, 255, 255, 255);
+            CalcViewPos();
             float w = m_viewInfo.Width * m_viewInfo.Scale;
             float h = m_viewInfo.Height * m_viewInfo.Scale;
-            int x = (int)((sender.ActualWidth - w) / 2);
-            int y = (int)((sender.ActualHeight - h) / 2);
+            int x = (int)m_viewInfo.OffsetX;
+            int y = (int)m_viewInfo.OffsetY;
             for (int r = 0; r < h; r += 8)
                 for (int c = 0; c < w; c += 8)
                 {
@@ -579,14 +606,26 @@ namespace IconEditSvg
         /// <param name="args"></param>
         private void RefCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
-            if (OrgImageBytes != null)
+            if (PngFile200 != null)
             {
                 float vw = m_viewInfo.Width * m_viewInfo.Scale;
                 float vh = m_viewInfo.Height * m_viewInfo.Scale;
                 int x = (int)((sender.ActualWidth - vw) / 2);
                 int y = (int)((sender.ActualHeight - vh) / 2);
 
-                float w = m_viewInfo.Scale*2;
+                args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, x, y);
+
+                CanvasBitmap bitmap = CanvasBitmap.CreateFromBytes(sender, PngFile200.PixelBuffer.ToArray(), 80, 80, Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                args.DrawingSession.DrawImage(bitmap);
+            }
+            else if (OrgImageBytes != null)
+            {
+                float vw = m_viewInfo.Width * m_viewInfo.Scale;
+                float vh = m_viewInfo.Height * m_viewInfo.Scale;
+                int x = (int)((sender.ActualWidth - vw) / 2);
+                int y = (int)((sender.ActualHeight - vh) / 2);
+
+                float w = m_viewInfo.Scale * 2;
 
                 int cl = 40;
                 for (int row = 0; row < 40; row++)
@@ -600,13 +639,12 @@ namespace IconEditSvg
                         byte g = OrgImageBytes[index + 1];
                         byte b = OrgImageBytes[index + 0];
                         byte a = OrgImageBytes[index + 3];
-//                        a = (byte)((float)a * _opacityValue / 100);
-                        Rect rect = new Rect(x+col * w,y+ row * w, w, w);
+                        //                        a = (byte)((float)a * _opacityValue / 100);
+                        Rect rect = new Rect(x + col * w, y + row * w, w, w);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
                     }
                 }
             }
-
         }
         /// <summary>
         /// 
@@ -827,7 +865,7 @@ namespace IconEditSvg
                         byte g = folder40bytes[index + 1];
                         byte b = folder40bytes[index + 0];
                         byte a = folder40bytes[index + 3];
-
+                        a = (byte)((float)a * (100-_opacityValue) / 100);
                         Rect rect = new Rect(col * 8, row * 8, 8, 8);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
 
@@ -1165,6 +1203,83 @@ namespace IconEditSvg
             }
         }
 
+        void MovePath(float x, float y)
+        {
+            foreach (var item in m_path)
+            {
+                item.MoveAll(x, y);
+            }
+
+            //-------------------------- 
+            m_viewInfo.TargetItem.UpdateElement(m_path);
+            svgdata = m_svgXmlDoc.GetXml();
+            svgText.Text = svgdata;
+            updateTree();
+            UpdateSvg(true);
+//            UpdateCordinateInfo();
+        }
+
+        void NextHandle(bool IsShift)
+        {
+            if (m_viewInfo.TargetItemIndex >= 0 && m_viewInfo.TargetItemPartIndex>=0) {
+                var item = m_path[m_viewInfo.TargetItemIndex];
+                if (item.NextHandle(m_viewInfo.TargetItemPartIndex,IsShift)) {
+                    if(IsShift)
+                        m_viewInfo.TargetItemPartIndex--;
+                    else
+                        m_viewInfo.TargetItemPartIndex++;
+                }
+                else
+                {
+                    if (IsShift) {
+                        NextItem(IsShift);
+                        if (m_viewInfo.TargetItemIndex >= 0)
+                        {
+                            item = m_path[m_viewInfo.TargetItemIndex];
+                            m_viewInfo.TargetItemPartIndex = item.LastPartIndex();
+                        }
+                    }
+                    else {
+                        NextItem(IsShift);
+                        m_viewInfo.TargetItemPartIndex = 0;
+                    }
+                }
+                MainCanvas.Invalidate();
+                UpdateCordinateInfo();
+            }
+        }
+
+        void NextItem(bool IsShift)
+        {
+            if (m_viewInfo.TargetItemIndex >= 0)
+            {
+                var index = m_viewInfo.TargetItemIndex;
+                int step = IsShift?-1:1;
+                int ix = 0;
+                for(;ix<2;ix++){
+                    index += step;
+                    if (index < 0)
+                    {
+                        index = m_path.Count - 1;
+                    }
+                    else if (index >= m_path.Count)
+                    {
+                        index = 0;
+                    }
+
+
+                    var item = m_path[index];
+                    if (item.NotZ()) {
+                        break;
+                    }
+                }
+                if (ix == 2) {
+                    index = -1;
+                }
+                m_viewInfo.TargetItemIndex = index;
+            }
+        }
+
         MakeLineDrawing _makeLineDrawing;
 
         private void EditCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -1240,20 +1355,7 @@ namespace IconEditSvg
         */
         private void EditCanvas_KeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (_makeLineDrawing != null)
-            {
-                switch (e.Key)
-                {
-                    case Windows.System.VirtualKey.Escape:
-                        _makeLineDrawing.CancelEvent();
-                        break;
-                    case Windows.System.VirtualKey.Up:
-                        break;
-                    case Windows.System.VirtualKey.Down:
-                        break;
-                }
-            }
-            else
+            if(m_path!=null)
             {
                 if (Info.TargetItemIndex >= 0)
                 {
@@ -1264,7 +1366,7 @@ namespace IconEditSvg
                             ValueChange(0, -s);
                             break;
                         case Windows.System.VirtualKey.Down:
-                            ValueChange(0,s);
+                            ValueChange(0, s);
                             break;
                         case Windows.System.VirtualKey.Left:
                             ValueChange(-s, 0);
@@ -1272,14 +1374,66 @@ namespace IconEditSvg
                         case Windows.System.VirtualKey.Right:
                             ValueChange(s, 0);
                             break;
+                        case Windows.System.VirtualKey.Tab:
+                            NextHandle(IsShiftKeyPressed);
+                            e.Handled = true;
+                            break;
                     }
 
                 }
+                else if (m_path != null && m_path.Count>0)
+                {
+                                float s = 5f;
+                    switch (e.Key)
+                    {
+                        case Windows.System.VirtualKey.Up:
+                            MovePath(0, -s);
+                            break;
+                        case Windows.System.VirtualKey.Down:
+                            MovePath(0, s);
+                            break;
+                        case Windows.System.VirtualKey.Left:
+                            MovePath(-s, 0);
+                            break;
+                        case Windows.System.VirtualKey.Right:
+                            MovePath(s, 0);
+                            break;
+                        case Windows.System.VirtualKey.Tab:
+                            break;
+                    }
+                }
+            }
+            else if (_makeLineDrawing != null)
+                {
+                    switch (e.Key)
+                    {
+                        case Windows.System.VirtualKey.Escape:
+                            _makeLineDrawing.CancelEvent();
+                            break;
+                        case Windows.System.VirtualKey.Up:
+                            break;
+                        case Windows.System.VirtualKey.Down:
+                            break;
+                    }
+                }
+
+        }
+
+        private bool IsShiftKeyPressed
+        {
+            get
+            {
+                var state = Window.Current.CoreWindow.GetKeyState(VirtualKey.Shift);
+                if ((state & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down)
+                {
+                    return true;
+                }
+                return false;
             }
         }
 
 
-        #endregion
+#endregion
         private void SampleTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
         {
             var node = args.InvokedItem as TreeViewNode;
@@ -1289,6 +1443,8 @@ namespace IconEditSvg
                 //node.IsExpanded = !node.IsExpanded;
                 m_viewInfo.TargetItem = item;
                 m_path = item.GetPathData();
+                DrawMode = false;
+                m_viewInfo.TargetItemIndex = -1;
                 MainCanvas.Invalidate();
             }
         }
@@ -1381,7 +1537,7 @@ namespace IconEditSvg
         }
 
         WriteableBitmap PngFile100;
-        BitmapImage PngFile200;
+        WriteableBitmap PngFile200;
 
 
         /// <summary>
@@ -1420,7 +1576,8 @@ namespace IconEditSvg
                             svgdata = m_svgXmlDoc.GetXml();
                         }
                         else {
-                            svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
+                            //svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
+                            svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80px"" height = ""80px"" ></svg>";
 
                         }
                     }
@@ -1478,7 +1635,7 @@ namespace IconEditSvg
                         }
                         if (file1 != null)
                         {
-                            PngFile200 = new BitmapImage();
+                            PngFile200 = new WriteableBitmap(80,80);
                             using (var s = await file1.OpenReadAsync())
                             {
                                 PngFile200.SetSource(s);
@@ -1519,9 +1676,16 @@ namespace IconEditSvg
         private void Slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
             _opacityValue = e.NewValue;
+
             OrgImage100.Opacity = _opacityValue / 100;
             OrgImage200.Opacity = _opacityValue / 100;
             RefCanvas.Opacity = _opacityValue / 100;
+
+            var o = 100-_opacityValue;
+
+            Image40.Opacity = o/100;
+            Image80.Opacity = o/100;
+
 
             Magnification.Invalidate();
         }
@@ -1623,6 +1787,36 @@ namespace IconEditSvg
                 });
 
             }
+        }
+
+        private void AppBarZoomOutButton_Click(object sender, RoutedEventArgs e)
+        {
+            m_viewInfo.Scale -= 2;
+            if (m_viewInfo.Scale < 6)
+            {
+                m_viewInfo.Scale = 6;
+            }
+            InvalidateAllCanvas();
+        }
+
+        private void AppBarZoomInButton_Click(object sender, RoutedEventArgs e)
+        {
+            m_viewInfo.Scale += 2;
+            InvalidateAllCanvas();
+        }
+        /// <summary>
+        /// ズーム等による変更
+        /// </summary>
+        void InvalidateAllCanvas()
+        {
+            CalcViewPos();
+            EditBase_Grid.Width = m_viewInfo.Width*m_viewInfo.Scale+100;
+            EditBase_Grid.Height = m_viewInfo.Height*m_viewInfo.Scale+100;
+
+            MatCanvas.Invalidate();
+            RefCanvas.Invalidate();
+            MainCanvas.Invalidate();
+            EditCanvas.Invalidate();
         }
     }
 
@@ -2211,15 +2405,29 @@ namespace IconEditSvg
                         }
                         break;
                     }
+                case 'M':
                 case 'l':
                 case 'L':
                     {
-                        Point p = points[0];
+                        Point p = points[partIndex];
                         p.X += x;
                         p.Y += y;
-                        points[0] = p;
+                        points[partIndex] = p;
                         break;
                     }
+            }
+        }
+
+        internal void MoveAll(float x, float y)
+        {
+            if (points != null && points.Count > 0)
+            {
+                for (int ix=0; ix < points.Count; ix++) {
+                    Point p = points[ix];
+                    p.X += x;
+                    p.Y += y;
+                    points[ix] = p;
+                }
             }
         }
 
@@ -2238,6 +2446,32 @@ namespace IconEditSvg
             }
 
             return path;
+        }
+
+        internal bool NextHandle(int partIndex,bool IsShift)
+        {
+            if (IsShift)
+            {
+                return partIndex != 0;
+            }
+            else
+            {
+                if (points.Count > partIndex + 1)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        internal int LastPartIndex()
+        {
+            return points.Count - 1;
+        }
+
+        internal bool NotZ()
+        {
+            return Command != 'z' && Command != 'Z';
         }
     }
 }
