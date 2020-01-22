@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:canvas ="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
     <Page.Resources>
@@ -95,7 +96,12 @@
                                 <SymbolIcon Symbol="Edit"/>
                             </AppBarToggleButton.Icon>
                         </AppBarToggleButton>
-
+                        <AppBarSeparator/>
+                        <ComboBox x:Name="PolygonUnitComboBox" ItemsSource="{Binding SampleEnumNameDictionary}"
+                DisplayMemberPath="Value"
+                SelectedValue="{Binding PolygonUnitValue, Mode=TwoWay}"
+                SelectedValuePath="Key" VerticalAlignment="Center" Width="150"
+        />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" Grid.Row="1">
                         <Grid Height="1" Background="Silver" HorizontalAlignment="Stretch"/>

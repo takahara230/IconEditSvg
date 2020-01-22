@@ -43,7 +43,7 @@ using Windows.System;
 
 namespace IconEditSvg
 {
-    public enum MouseEventKind { Press,Move,Release, Double };
+    public enum MouseEventKind { Press, Move, Release, Double };
     public class Command : ICommand
     {
         private readonly Action<object> _action;
@@ -87,6 +87,7 @@ namespace IconEditSvg
         public int HoverItemPartIndex;
         public int PressItemIndex;
         public int PressItemPartIndex;
+        public Vector2 PolygonCenter;
 
         public ViewInfo()
         {
@@ -120,7 +121,7 @@ namespace IconEditSvg
     /// <summary>
     /// それ自体で使用できる空白ページまたはフレーム内に移動できる空白ページ。
     /// </summary>
-    public sealed partial class MainPage : Page,INotifyPropertyChanged
+    public sealed partial class MainPage : Page, INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] String propertyName = "")
@@ -129,6 +130,14 @@ namespace IconEditSvg
             {
                 PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
             }
+        }
+        private void SetProperty<T>(ref T storage, T value,
+                                [CallerMemberName] string propertyName = null)
+        {
+            if (object.Equals(storage, value))
+                return;
+            storage = value;
+            OnPropertyChanged(propertyName);
         }
 
         private ObservableCollection<Item> DataSource = new ObservableCollection<Item>();
@@ -194,8 +203,8 @@ namespace IconEditSvg
         internal void FocusMove()
         {
             EditCanvas.Focus(FocusState.Keyboard);
-//            var x = FocusManager.GetFocusedElement();
-//            Debug.WriteLine(x.ToString());
+            //            var x = FocusManager.GetFocusedElement();
+            //            Debug.WriteLine(x.ToString());
         }
 #if false
         private void OrderButton_Click(object sender, RoutedEventArgs e)
@@ -224,13 +233,39 @@ namespace IconEditSvg
             }
         }
 #endif
+        public enum PolygonUnit
+        {
+            none=0,
+            unit1,
+            unit2,
+            unit3,
+            unit4,
 
-        private bool _drawMode=false;
-        private bool DrawMode {
-            get { return _drawMode; }
+        }
+        public Dictionary<PolygonUnit, string> SampleEnumNameDictionary { get; }
+     = new Dictionary<PolygonUnit, string>();
+
+        // 画面とバインドしたい列挙型のプロパティ
+        private PolygonUnit _polygonUnitValue= PolygonUnit.unit4;
+        public PolygonUnit PolygonUnitValue
+        {
+            get => _polygonUnitValue;
             set {
+                SetProperty(ref _polygonUnitValue, value);
+                UpdatePolygonVlues();
+                MainCanvas.Invalidate();
+            }
+        }
+
+
+        private bool _drawMode = false;
+        private bool DrawMode
+        {
+            get { return _drawMode; }
+            set
+            {
                 _drawMode = value;
-                EditCanvas.Visibility = value?Visibility.Visible:Visibility.Collapsed;
+                EditCanvas.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
                 OnPropertyChanged("DrawMode");
                 if (_drawMode)
                 {
@@ -239,12 +274,12 @@ namespace IconEditSvg
                     //var x =  FocusManager.GetFocusedElement();
                     _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
                     {
-                        var result  = await FocusManager.TryFocusAsync(EditCanvas, FocusState.Keyboard);
+                        var result = await FocusManager.TryFocusAsync(EditCanvas, FocusState.Keyboard);
                         if (result.Succeeded) System.Diagnostics.Debug.WriteLine("成功");
                         else Debug.WriteLine("失敗");
                     }));
-                    
-                    
+
+
 
                     if (m_path != null)
                     {
@@ -261,7 +296,8 @@ namespace IconEditSvg
                         _makeLineDrawing.Reset();
                     }
                 }
-                else {
+                else
+                {
                 }
             }
         }
@@ -281,9 +317,17 @@ namespace IconEditSvg
 
         public MainPage()
         {
+            SampleEnumNameDictionary.Add(PolygonUnit.none, "非多角形");
+            SampleEnumNameDictionary.Add(PolygonUnit.unit1, "反復数(1)");
+            SampleEnumNameDictionary.Add(PolygonUnit.unit2, "反復数(2)");
+            SampleEnumNameDictionary.Add(PolygonUnit.unit3, "反復数(3)");
+            SampleEnumNameDictionary.Add(PolygonUnit.unit4, "反復数(4)");
+
+
+
             DataContext = this;
             this.InitializeComponent();
-//            Window.Current.CoreWindow.KeyDown += CoreWindow_KeyDown;
+            //            Window.Current.CoreWindow.KeyDown += CoreWindow_KeyDown;
 
 
             this.Loaded += MainPage_Loaded;
@@ -291,7 +335,7 @@ namespace IconEditSvg
             SetupCommand();
 
             m_viewInfo = new ViewInfo();
-            
+
 
             OpacitySlider.Value = _opacityValue;
 
@@ -321,7 +365,6 @@ namespace IconEditSvg
                     }
                 });
             }
-
         }
         /*
         private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Core.KeyEventArgs args)
@@ -364,22 +407,8 @@ namespace IconEditSvg
 
         private void MainPage_Loaded(object sender, RoutedEventArgs e)
         {
-            /*
-            IList<TreeViewNode> l1 = new List<TreeViewNode>();
-            for (int i = 0; i < 20; ++i)
-            {
-                l1.Add(new TreeViewNode() { Content = string.Format("アイテム{0}", i), IsExpanded = true });
-                switch (i)
-                {
-                    case 0:
-                        break;
-                    default:
-                        l1[i - 1].Children.Add(l1[i]);
-                        break;
-                }
-            }
-            TreeView1.RootNodes.Add(l1[0]);
-            */
+            PolygonUnitComboBox.SelectedIndex = 0;
+
             Task.Run((Func<Task>)(async () =>
             {
 
@@ -568,9 +597,11 @@ namespace IconEditSvg
                 int x = (int)((aw - w) / 2);
                 m_viewInfo.OffsetX = x;
             }
-            if (h + 100 > ah) {
+            if (h + 100 > ah)
+            {
             }
-            else {
+            else
+            {
                 int y = (int)((Edit_ScrollViewer.ActualHeight - h) / 2);
                 m_viewInfo.OffsetY = y;
             }
@@ -606,7 +637,7 @@ namespace IconEditSvg
         /// <param name="args"></param>
         private void RefCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
-            if (PngFile200 != null)
+            if(false) //if (PngFile200 != null)
             {
                 float vw = m_viewInfo.Width * m_viewInfo.Scale;
                 float vh = m_viewInfo.Height * m_viewInfo.Scale;
@@ -689,7 +720,8 @@ namespace IconEditSvg
             if (svgdata != null)
             {
                 args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, x, y);
-                try {
+                try
+                {
                     var doc = CanvasSvgDocument.LoadFromXml(sender, svgdata);
                     if (doc != null)
                     {
@@ -701,7 +733,8 @@ namespace IconEditSvg
                         args.DrawingSession.DrawSvg(SvgDocOrg, new Size(m_viewInfo.Width, m_viewInfo.Height), 0, 0);
                     }
                 }
-                catch {
+                catch
+                {
                 }
             }
             if (m_path != null)
@@ -710,7 +743,7 @@ namespace IconEditSvg
                 int index = 0;
                 foreach (SvgPathItem item in m_path)
                 {
-                    item.DrawAnchor(args.DrawingSession, m_viewInfo,index);
+                    item.DrawAnchor(args.DrawingSession, m_viewInfo, index);
                     /*
                     Point point = item.GetPoint();
                     point.X *= viewInfo.Scale;
@@ -718,6 +751,15 @@ namespace IconEditSvg
                     args.DrawingSession.DrawEllipse((float)point.X, (float)point.Y, 2, 2, item.GetColor());
                     */
                     index++;
+                }
+                if (PolygonUnitValue != PolygonUnit.none)
+                {
+                    if (m_viewInfo.PolygonCenter != null)
+                    {
+                        float xc = m_viewInfo.PolygonCenter.X * m_viewInfo.Scale;
+                        float yc = m_viewInfo.PolygonCenter.Y * m_viewInfo.Scale;
+                        args.DrawingSession.FillEllipse(xc, yc, 4, 4, Colors.DodgerBlue);
+                    }
                 }
 
             }
@@ -727,7 +769,7 @@ namespace IconEditSvg
 
         private void EditCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
-            if(_makeLineDrawing!=null)
+            if (_makeLineDrawing != null)
                 _makeLineDrawing.Draw(args.DrawingSession, m_viewInfo);
             /*
             using (var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(args.DrawingSession))
@@ -865,7 +907,7 @@ namespace IconEditSvg
                         byte g = folder40bytes[index + 1];
                         byte b = folder40bytes[index + 0];
                         byte a = folder40bytes[index + 3];
-                        a = (byte)((float)a * (100-_opacityValue) / 100);
+                        a = (byte)((float)a * (100 - _opacityValue) / 100);
                         Rect rect = new Rect(col * 8, row * 8, 8, 8);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
 
@@ -951,7 +993,8 @@ namespace IconEditSvg
         void UpdateSvg(bool success)
         {
             MainCanvas.Invalidate();
-            _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () => {
+            _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
+            {
                 WriteableBitmap i40 = null;
                 WriteableBitmap i80 = null;
                 if (success)
@@ -1062,7 +1105,7 @@ namespace IconEditSvg
             // Children were just added to this node, so set HasUnrealizedChildren to false.
             node.HasUnrealizedChildren = false;
         }
-#region イベント
+        #region イベント
 
         private void MainCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -1081,7 +1124,7 @@ namespace IconEditSvg
         }
 
 
-        void findItem(PointerRoutedEventArgs e,MouseEventKind kind)
+        void findItem(PointerRoutedEventArgs e, MouseEventKind kind)
         {
             var ptr = e.Pointer;
             if (ptr.PointerDeviceType == Windows.Devices.Input.PointerDeviceType.Mouse)
@@ -1142,7 +1185,8 @@ namespace IconEditSvg
                                     m_viewInfo.TargetItemPartIndex = partindex;
                                     MainCanvas.Invalidate();
                                 }
-                                else if(m_viewInfo.TargetItemIndex>=0) {
+                                else if (m_viewInfo.TargetItemIndex >= 0)
+                                {
                                     m_viewInfo.TargetItemIndex = -1;
                                     m_viewInfo.TargetItemPartIndex = -1;
                                     MainCanvas.Invalidate();
@@ -1156,30 +1200,83 @@ namespace IconEditSvg
                                 break;
                             }
                     }
-                    
+
                 }
             }
             e.Handled = true;
         }
 
+        float ToAngle(float radian)
+        {
+            return radian * 180 / MathF.PI;
+        }
+
         private void UpdateCordinateInfo()
         {
-            //
-
-            var index = m_viewInfo.TargetItemIndex;//
-            var partIndex = m_viewInfo.TargetItemPartIndex; // 
-            if (index >= 0)
+            if (PolygonUnitValue!= PolygonUnit.none)
             {
-                var item = m_path[index];
-                string info = item.GetInfo(partIndex);
-                m_editTargetPos.Text = info;
+                var count = m_path.Count - 1;
+                if (count >= 8 && count % 2 == 0)
+                {
+                    string text = string.Format("中心：{0:0.0} {1:0.0}", m_viewInfo.PolygonCenter.X, m_viewInfo.PolygonCenter.Y);
+                    var index = m_viewInfo.TargetItemIndex;//
+                    if (index >= 0)
+                    {
+                        var item = m_path[index];
+                        var p = item.GetPoint();
+                        var v = m_viewInfo.PolygonCenter;
+                        var ofy = p.Y - v.Y;
+                        var ofx = p.X - v.X;
+                        float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
 
-                return;
+                        var a = MathF.Atan2(ofy, ofx);
+
+                        text += string.Format(" 半径 {0:0.00} 角度 {1:0.00}", r, ToAngle(a));
+
+
+                    }
+                    m_editTargetPos.Text = text;
+                    return;
+                }
+            }
+            else
+            {
+                var index = m_viewInfo.TargetItemIndex;//
+                var partIndex = m_viewInfo.TargetItemPartIndex; // 
+                if (index >= 0)
+                {
+                    var item = m_path[index];
+                    string info = item.GetInfo(partIndex);
+                    m_editTargetPos.Text = info;
+
+                    return;
+                }
             }
 
             m_editTargetPos.Text = string.Format("座標");
-            
+
         }
+
+        private void UpdatePolygonVlues()
+        {
+            if (m_path != null && PolygonUnitValue != PolygonUnit.none)
+            {
+                var n = (m_path.Count - 1);
+                var item0 = m_path[0];
+                var n1 = n / 2;
+                var item1 = m_path[n1];
+                var p0 = item0.GetPoint();
+                var p1 = item1.GetPoint();
+                float x = MathF.Round((float)(p0.X + p1.X) / 2);
+                float y = MathF.Round((float)(p0.Y + p1.Y) / 2);
+                System.Diagnostics.Debug.WriteLine("中心 {0:0.00},{1:0.00}", x, y);
+
+                m_viewInfo.PolygonCenter = new Vector2(x, y);
+            }
+
+        }
+
+
         /// <summary>
         /// 
         /// </summary>
@@ -1203,6 +1300,66 @@ namespace IconEditSvg
             }
         }
 
+        void PolygonChange(float r,float a)
+        {
+            if (!IsConsistentAsPolygonData()) return;
+
+            var count = m_path.Count - 1;
+            var index = m_viewInfo.TargetItemIndex;//
+            var partIndex = m_viewInfo.TargetItemPartIndex; // 
+            if (index >= 0)
+            {
+                var item0 = m_path[index];
+                item0.PolygonChange(m_viewInfo, r, a);
+
+                int unit = (int)PolygonUnitValue;
+                int unitcount = count / unit;
+                for (int ix = 1; ix < unitcount; ix++) {
+                    index += unit;
+                    if (index >= count) {
+                        index = index - count;
+                    }
+                    var item = m_path[index];
+                    item.ApplyOtherValue(item0, m_viewInfo,(360.0f/count*unit)*ix);
+                }
+
+
+
+
+
+                ///
+                m_viewInfo.TargetItem.UpdateElement(m_path);
+                svgdata = m_svgXmlDoc.GetXml();
+                svgText.Text = svgdata;
+                updateTree();
+                UpdateSvg(true);
+                UpdateCordinateInfo();
+            }
+
+        }
+
+        /// <summary>
+        /// 多角形データとして矛盾が無いか
+        /// </summary>
+        /// <returns></returns>
+        bool IsConsistentAsPolygonData()
+        {
+            if (m_path == null)
+                return false;
+            int count = m_path.Count - 1; // z があるぜんてい
+            int unit = (int)PolygonUnitValue;
+            if (count < unit * 2) return false;
+            if (count % unit != 0) return false;
+
+
+            return true;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
         void MovePath(float x, float y)
         {
             foreach (var item in m_path)
@@ -1216,22 +1373,25 @@ namespace IconEditSvg
             svgText.Text = svgdata;
             updateTree();
             UpdateSvg(true);
-//            UpdateCordinateInfo();
+            //            UpdateCordinateInfo();
         }
 
         void NextHandle(bool IsShift)
         {
-            if (m_viewInfo.TargetItemIndex >= 0 && m_viewInfo.TargetItemPartIndex>=0) {
+            if (m_viewInfo.TargetItemIndex >= 0 && m_viewInfo.TargetItemPartIndex >= 0)
+            {
                 var item = m_path[m_viewInfo.TargetItemIndex];
-                if (item.NextHandle(m_viewInfo.TargetItemPartIndex,IsShift)) {
-                    if(IsShift)
+                if (item.NextHandle(m_viewInfo.TargetItemPartIndex, IsShift))
+                {
+                    if (IsShift)
                         m_viewInfo.TargetItemPartIndex--;
                     else
                         m_viewInfo.TargetItemPartIndex++;
                 }
                 else
                 {
-                    if (IsShift) {
+                    if (IsShift)
+                    {
                         NextItem(IsShift);
                         if (m_viewInfo.TargetItemIndex >= 0)
                         {
@@ -1239,7 +1399,8 @@ namespace IconEditSvg
                             m_viewInfo.TargetItemPartIndex = item.LastPartIndex();
                         }
                     }
-                    else {
+                    else
+                    {
                         NextItem(IsShift);
                         m_viewInfo.TargetItemPartIndex = 0;
                     }
@@ -1254,9 +1415,10 @@ namespace IconEditSvg
             if (m_viewInfo.TargetItemIndex >= 0)
             {
                 var index = m_viewInfo.TargetItemIndex;
-                int step = IsShift?-1:1;
+                int step = IsShift ? -1 : 1;
                 int ix = 0;
-                for(;ix<2;ix++){
+                for (; ix < 2; ix++)
+                {
                     index += step;
                     if (index < 0)
                     {
@@ -1269,11 +1431,13 @@ namespace IconEditSvg
 
 
                     var item = m_path[index];
-                    if (item.NotZ()) {
+                    if (item.NotZ())
+                    {
                         break;
                     }
                 }
-                if (ix == 2) {
+                if (ix == 2)
+                {
                     index = -1;
                 }
                 m_viewInfo.TargetItemIndex = index;
@@ -1298,7 +1462,8 @@ namespace IconEditSvg
 
         private void EditCanvas_PointerCanceled(object sender, PointerRoutedEventArgs e)
         {
-            if (_makeLineDrawing != null) {
+            if (_makeLineDrawing != null)
+            {
                 _makeLineDrawing.CancelEvent();
             }
         }
@@ -1336,10 +1501,11 @@ namespace IconEditSvg
                     var pos = ptrPt.Position;
                     pos.X -= m_viewInfo.OffsetX;
                     pos.Y -= m_viewInfo.OffsetY;
-                    if (_makeLineDrawing == null) {
+                    if (_makeLineDrawing == null)
+                    {
                         _makeLineDrawing = new MakeLineDrawing(this);
                     }
-                    _makeLineDrawing.PointerEvent(kind,new Vector2((float)pos.X,(float)pos.Y));
+                    _makeLineDrawing.PointerEvent(kind, new Vector2((float)pos.X, (float)pos.Y));
                 }
             }
         }
@@ -1355,46 +1521,81 @@ namespace IconEditSvg
         */
         private void EditCanvas_KeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if(m_path!=null)
+            if (m_path != null)
             {
                 if (Info.TargetItemIndex >= 0)
                 {
-                    float s = 0.1f;
-                    switch (e.Key)
-                    {
-                        case Windows.System.VirtualKey.Up:
-                            ValueChange(0, -s);
-                            break;
-                        case Windows.System.VirtualKey.Down:
-                            ValueChange(0, s);
-                            break;
-                        case Windows.System.VirtualKey.Left:
-                            ValueChange(-s, 0);
-                            break;
-                        case Windows.System.VirtualKey.Right:
-                            ValueChange(s, 0);
-                            break;
-                        case Windows.System.VirtualKey.Tab:
-                            NextHandle(IsShiftKeyPressed);
-                            e.Handled = true;
-                            break;
+                    if (PolygonUnitValue != PolygonUnit.none) {
+                        switch (e.Key)
+                        {
+                            case VirtualKey.NumberPad8:
+                            case Windows.System.VirtualKey.Up:
+                                PolygonChange(0.1f, 0);
+                                break;
+                            case VirtualKey.NumberPad2:
+                            case Windows.System.VirtualKey.Down:
+                                PolygonChange(-0.1f, 0);
+                                break;
+                            case VirtualKey.NumberPad4:
+                            case Windows.System.VirtualKey.Left:
+                                PolygonChange(0, -1);
+                                break;
+                            case VirtualKey.NumberPad6:
+                            case Windows.System.VirtualKey.Right:
+                                PolygonChange(0, 1);
+                                break;
+                            case Windows.System.VirtualKey.Tab:
+                                NextHandle(IsShiftKeyPressed);
+                                e.Handled = true;
+                                break;
+                        }
+                    }
+                    else {
+                        float s = 0.1f;
+                        switch (e.Key)
+                        {
+                            case VirtualKey.NumberPad8:
+                            case Windows.System.VirtualKey.Up:
+                                ValueChange(0, -s);
+                                break;
+                            case VirtualKey.NumberPad2:
+                            case Windows.System.VirtualKey.Down:
+                                ValueChange(0, s);
+                                break;
+                            case VirtualKey.NumberPad4:
+                            case Windows.System.VirtualKey.Left:
+                                ValueChange(-s, 0);
+                                break;
+                            case VirtualKey.NumberPad6:
+                            case Windows.System.VirtualKey.Right:
+                                ValueChange(s, 0);
+                                break;
+                            case Windows.System.VirtualKey.Tab:
+                                NextHandle(IsShiftKeyPressed);
+                                e.Handled = true;
+                                break;
+                        }
                     }
 
                 }
-                else if (m_path != null && m_path.Count>0)
+                else if (m_path != null && m_path.Count > 0)
                 {
-                                float s = 5f;
+                    float s = IsShiftKeyPressed?0.5f:5f;
                     switch (e.Key)
                     {
+                        case VirtualKey.NumberPad8:
                         case Windows.System.VirtualKey.Up:
                             MovePath(0, -s);
                             break;
+                        case VirtualKey.NumberPad2:
                         case Windows.System.VirtualKey.Down:
                             MovePath(0, s);
                             break;
+                        case VirtualKey.NumberPad4:
                         case Windows.System.VirtualKey.Left:
                             MovePath(-s, 0);
                             break;
+                        case VirtualKey.NumberPad6:
                         case Windows.System.VirtualKey.Right:
                             MovePath(s, 0);
                             break;
@@ -1404,18 +1605,18 @@ namespace IconEditSvg
                 }
             }
             else if (_makeLineDrawing != null)
+            {
+                switch (e.Key)
                 {
-                    switch (e.Key)
-                    {
-                        case Windows.System.VirtualKey.Escape:
-                            _makeLineDrawing.CancelEvent();
-                            break;
-                        case Windows.System.VirtualKey.Up:
-                            break;
-                        case Windows.System.VirtualKey.Down:
-                            break;
-                    }
+                    case Windows.System.VirtualKey.Escape:
+                        _makeLineDrawing.CancelEvent();
+                        break;
+                    case Windows.System.VirtualKey.Up:
+                        break;
+                    case Windows.System.VirtualKey.Down:
+                        break;
                 }
+            }
 
         }
 
@@ -1433,7 +1634,7 @@ namespace IconEditSvg
         }
 
 
-#endregion
+        #endregion
         private void SampleTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
         {
             var node = args.InvokedItem as TreeViewNode;
@@ -1443,6 +1644,7 @@ namespace IconEditSvg
                 //node.IsExpanded = !node.IsExpanded;
                 m_viewInfo.TargetItem = item;
                 m_path = item.GetPathData();
+                UpdatePolygonVlues();
                 DrawMode = false;
                 m_viewInfo.TargetItemIndex = -1;
                 MainCanvas.Invalidate();
@@ -1575,7 +1777,8 @@ namespace IconEditSvg
                             m_svgXmlDoc = await XmlDocument.LoadFromFileAsync(file, xmlLoadSettings);
                             svgdata = m_svgXmlDoc.GetXml();
                         }
-                        else {
+                        else
+                        {
                             //svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
                             svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80px"" height = ""80px"" ></svg>";
 
@@ -1585,7 +1788,7 @@ namespace IconEditSvg
                     {
                     }
 
-                    
+
 
 
                     StorageFile file0 = null;
@@ -1635,7 +1838,7 @@ namespace IconEditSvg
                         }
                         if (file1 != null)
                         {
-                            PngFile200 = new WriteableBitmap(80,80);
+                            PngFile200 = new WriteableBitmap(80, 80);
                             using (var s = await file1.OpenReadAsync())
                             {
                                 PngFile200.SetSource(s);
@@ -1657,14 +1860,14 @@ namespace IconEditSvg
                         catch (Exception ex)
                         {
                             Debug.WriteLine(ex.ToString());
-                            
+
                         }
-                        
-                        
+
+
                         RefCanvas.Invalidate(); // いらない多分、後で見る
 
                         UpdateSvgByText();
-                        
+
 
                     }));
                 });
@@ -1681,10 +1884,10 @@ namespace IconEditSvg
             OrgImage200.Opacity = _opacityValue / 100;
             RefCanvas.Opacity = _opacityValue / 100;
 
-            var o = 100-_opacityValue;
+            var o = 100 - _opacityValue;
 
-            Image40.Opacity = o/100;
-            Image80.Opacity = o/100;
+            Image40.Opacity = o / 100;
+            Image80.Opacity = o / 100;
 
 
             Magnification.Invalidate();
@@ -1755,8 +1958,8 @@ namespace IconEditSvg
 
         string v2s(Vector2 v)
         {
-            float x = (v.X)/m_viewInfo.Scale;
-            float y = (v.Y)/m_viewInfo.Scale;
+            float x = (v.X) / m_viewInfo.Scale;
+            float y = (v.Y) / m_viewInfo.Scale;
             return string.Format("{0:0.00} {1:0.00} ", x, y);
         }
 
@@ -1766,24 +1969,26 @@ namespace IconEditSvg
             if (m_svgXmlDoc != null)
             {
                 if (m_viewInfo.FolderPath == null || m_viewInfo.FileName == null) return;
-                Task.Run(async () => { 
-                try
+                Task.Run(async () =>
                 {
+                    try
+                    {
                         string filename = m_viewInfo.FileName + ".svg";
                         var file = await CmUtils.FindFileAsync(m_viewInfo.FolderPath, m_viewInfo.FileName, "svg");
                         if (file != null)
                         {
                         }
                         StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(m_viewInfo.FolderPath);
-                        file = await folder.CreateFileAsync(filename,CreationCollisionOption.GenerateUniqueName);
-                        if (file!=null) {
+                        file = await folder.CreateFileAsync(filename, CreationCollisionOption.GenerateUniqueName);
+                        if (file != null)
+                        {
                             await m_svgXmlDoc.SaveToFileAsync(file);
                         }
 
                     }
                     catch (Exception)
-                {
-                }
+                    {
+                    }
                 });
 
             }
@@ -1810,13 +2015,18 @@ namespace IconEditSvg
         void InvalidateAllCanvas()
         {
             CalcViewPos();
-            EditBase_Grid.Width = m_viewInfo.Width*m_viewInfo.Scale+100;
-            EditBase_Grid.Height = m_viewInfo.Height*m_viewInfo.Scale+100;
+            EditBase_Grid.Width = m_viewInfo.Width * m_viewInfo.Scale + 100;
+            EditBase_Grid.Height = m_viewInfo.Height * m_viewInfo.Scale + 100;
 
             MatCanvas.Invalidate();
             RefCanvas.Invalidate();
             MainCanvas.Invalidate();
             EditCanvas.Invalidate();
+        }
+
+        private void HandleCheck(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 
@@ -1976,11 +2186,12 @@ namespace IconEditSvg
         internal void UpdateElement(List<SvgPathItem> items)
         {
             string path = "";
-            foreach (var item in items) {
+            foreach (var item in items)
+            {
                 path = path + item.Encode();
             }
 
-            element.SetAttribute("d",path);
+            element.SetAttribute("d", path);
         }
 
 
@@ -1988,13 +2199,13 @@ namespace IconEditSvg
 
     class SvgPathItem
     {
-        List<Point> points;
+        List<Vector2> points;
         public char Command;
 
         private SvgPathItem befor;
         private int index;
-        private Point current;
-        private Point beforPoint;
+        private Vector2 current;
+        private Vector2 beforPoint;
 
         float rx;   //水平方向の半径
         float ry;//垂直方向の半径
@@ -2012,8 +2223,8 @@ namespace IconEditSvg
             befor = item;
             Command = command;
             index = 0;
-            points = new List<Point>();
-            beforPoint = item == null ? new Point(0, 0) : item.GetPoint();
+            points = new List<Vector2>();
+            beforPoint = item == null ? new Vector2(0, 0) : item.GetPoint();
 
         }
 
@@ -2046,10 +2257,10 @@ namespace IconEditSvg
                                     sweep_flag = (int)fnum;
                                     break;
                                 case 5:
-                                    current = new Point(fnum + (relative ? beforPoint.X : 0), 0);
+                                    current = new Vector2(fnum + (relative ? beforPoint.X : 0), 0);
                                     break;
                                 case 6:
-                                    current = new Point(current.X, fnum + (relative ? beforPoint.Y : 0));
+                                    current = new Vector2(current.X, fnum + (relative ? beforPoint.Y : 0));
                                     points.Add(current);
                                     break;
                             }
@@ -2058,14 +2269,14 @@ namespace IconEditSvg
                     case 'h':
                     case 'H':
                         {
-                            current = new Point(fnum + (relative ? beforPoint.X : 0), beforPoint.Y);
+                            current = new Vector2(fnum + (relative ? beforPoint.X : 0), beforPoint.Y);
                             points.Add(current);
                             break;
                         }
                     case 'v':
                     case 'V':
                         {
-                            current = new Point(beforPoint.X, fnum + (relative ? beforPoint.Y : 0));
+                            current = new Vector2(beforPoint.X, fnum + (relative ? beforPoint.Y : 0));
                             points.Add(current);
                             break;
                         }
@@ -2073,11 +2284,11 @@ namespace IconEditSvg
                         {
                             if (index % 2 == 0)
                             {
-                                current = new Point(fnum + (relative ? beforPoint.X : 0), 0);
+                                current = new Vector2(fnum + (relative ? beforPoint.X : 0), 0);
                             }
                             else
                             {
-                                current = new Point(current.X, fnum + (relative ? beforPoint.Y : 0));
+                                current = new Vector2(current.X, fnum + (relative ? beforPoint.Y : 0));
                                 points.Add(current);
                                 if (Command == 'l')
                                 {
@@ -2092,13 +2303,13 @@ namespace IconEditSvg
 
         }
 
-        public Point GetPoint()
+        public Vector2 GetPoint()
         {
             if (points.Count != 0)
             {
                 return points[points.Count - 1];
             }
-            return new Point(0, 0);
+            return new Vector2(0, 0);
         }
 
         public Color GetColor()
@@ -2142,7 +2353,7 @@ namespace IconEditSvg
                 case 'l':
                 case 'L':
                     int partindex = 0;
-                    foreach (Point point in points)
+                    foreach (Vector2 point in points)
                     {
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
@@ -2154,24 +2365,24 @@ namespace IconEditSvg
                 case 'C':
                     if (points.Count == 3)
                     {
-                        Point point = points[2];
+                        Vector2 point = points[2];
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
 
                         DrawAnchorSub(win2d, viewInfo, myIndex, 2, x, y);
 
-                        Point p0 = befor.GetPoint();
+                        Vector2 p0 = befor.GetPoint();
                         float x0 = (float)p0.X * scale;
                         float y0 = (float)p0.Y * scale;
 
-                        Point p1 = points[0];
+                        Vector2 p1 = points[0];
                         float x1 = (float)p1.X * scale;
                         float y1 = (float)p1.Y * scale;
                         win2d.DrawLine(x0, y0, x1, y1, Colors.Green);
                         DrawAnchorSub(win2d, viewInfo, myIndex, 0, x1, y1);
 
 
-                        Point p2 = points[1];
+                        Vector2 p2 = points[1];
                         float x2 = (float)p2.X * scale;
                         float y2 = (float)p2.Y * scale;
                         win2d.DrawLine(x, y, x2, y2, Colors.Green);
@@ -2180,7 +2391,7 @@ namespace IconEditSvg
                     break;
                 case 'a':
                 case 'A':
-                    foreach (Point point in points)
+                    foreach (Vector2 point in points)
                     {
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
@@ -2264,7 +2475,7 @@ namespace IconEditSvg
                 case 'l':
                 case 'L':
                     int index = 0;
-                    foreach (Point point in points)
+                    foreach (Vector2 point in points)
                     {
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
@@ -2279,7 +2490,7 @@ namespace IconEditSvg
                 case 'C':
                     if (points.Count == 3)
                     {
-                        Point point = points[2];
+                        Vector2 point = points[2];
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
                         //win2d.DrawEllipse(x, y, 3, 3, Colors.Green);
@@ -2289,11 +2500,11 @@ namespace IconEditSvg
                         }
 
 
-                        Point p0 = befor.GetPoint();
+                        Vector2 p0 = befor.GetPoint();
                         float x0 = (float)p0.X * scale;
                         float y0 = (float)p0.Y * scale;
 
-                        Point p1 = points[0];
+                        Vector2 p1 = points[0];
                         float x1 = (float)p1.X * scale;
                         float y1 = (float)p1.Y * scale;
                         if (IsNear(x1, y1, mousePoint.X, mousePoint.Y))
@@ -2302,7 +2513,7 @@ namespace IconEditSvg
                         }
 
 
-                        Point p2 = points[1];
+                        Vector2 p2 = points[1];
                         float x2 = (float)p2.X * scale;
                         float y2 = (float)p2.Y * scale;
 
@@ -2317,7 +2528,7 @@ namespace IconEditSvg
                     break;
                 case 'a':
                 case 'A':
-                    foreach (Point point in points)
+                    foreach (Vector2 point in points)
                     {
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
@@ -2344,7 +2555,7 @@ namespace IconEditSvg
         public string GetInfo(int partIndex)
         {
             string label = "座標";
-            Point p = points[0];
+            Vector2 p = points[0];
             switch (Command)
             {
                 case 'C':
@@ -2360,7 +2571,7 @@ namespace IconEditSvg
                             else if (partIndex == 0)
                             {
                                 p = befor.GetPoint();
-                                Point c = points[0];
+                                Vector2 c = points[0];
                                 c.X = c.X - p.X;
                                 c.Y = c.Y - p.Y;
                                 double r = Math.Sqrt(c.X * c.X + c.Y * c.Y) / 0.5522847;
@@ -2368,7 +2579,7 @@ namespace IconEditSvg
                             }
                             else
                             {
-                                Point c = points[1];
+                                Vector2 c = points[1];
                                 c.X = c.X - p.X;
                                 c.Y = c.Y - p.Y;
                                 double r = Math.Sqrt(c.X * c.X + c.Y * c.Y) / 0.5522847;
@@ -2398,10 +2609,10 @@ namespace IconEditSvg
                     {
                         if (points.Count == 3)
                         {
-                            Point p = points[partIndex];
+                            Vector2 p = points[partIndex];
                             p.X += x;
                             p.Y += y;
-                            points[partIndex]=p;
+                            points[partIndex] = p;
                         }
                         break;
                     }
@@ -2409,7 +2620,7 @@ namespace IconEditSvg
                 case 'l':
                 case 'L':
                     {
-                        Point p = points[partIndex];
+                        Vector2 p = points[partIndex];
                         p.X += x;
                         p.Y += y;
                         points[partIndex] = p;
@@ -2422,8 +2633,9 @@ namespace IconEditSvg
         {
             if (points != null && points.Count > 0)
             {
-                for (int ix=0; ix < points.Count; ix++) {
-                    Point p = points[ix];
+                for (int ix = 0; ix < points.Count; ix++)
+                {
+                    Vector2 p = points[ix];
                     p.X += x;
                     p.Y += y;
                     points[ix] = p;
@@ -2436,19 +2648,20 @@ namespace IconEditSvg
             string path = "";
             var c = Command;
             c = Char.ToUpper(c);
-            if(c=='V' || c== 'H'){
-                c  = 'L';
+            if (c == 'V' || c == 'H')
+            {
+                c = 'L';
             }
             path = path + c;
-            foreach (Point point in points)
+            foreach (Vector2 point in points)
             {
-                path = path + string.Format("{0:0.00} {1:0.00} ", point.X,point.Y);
+                path = path + string.Format("{0:0.00} {1:0.00} ", point.X, point.Y);
             }
 
             return path;
         }
 
-        internal bool NextHandle(int partIndex,bool IsShift)
+        internal bool NextHandle(int partIndex, bool IsShift)
         {
             if (IsShift)
             {
@@ -2472,6 +2685,76 @@ namespace IconEditSvg
         internal bool NotZ()
         {
             return Command != 'z' && Command != 'Z';
+        }
+
+        internal void PolygonChange(ViewInfo info, float or, float oa)
+        {
+            switch (Command)
+            {
+                case 'C':
+                case 'c':
+                    {
+                        break;
+                    }
+                case 'M':
+                case 'l':
+                case 'L':
+                    {
+                        Vector2 p = points[0];
+                        var c = info.PolygonCenter;
+                        float ofx = p.X - c.X;
+                        float ofy = p.Y - c.Y;
+                        float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2)) + or;
+                        r = MathF.Round(r, 1);
+                        float a = MathF.Atan2(ofy,ofx);
+                        a = a + oa * MathF.PI / 180;
+
+                        a =  MathF.Round( a * 180 / MathF.PI) * MathF.PI/180;
+
+                        //
+                        float vc = MathF.Cos(a);
+                        p.X = c.X + r * vc;
+                        p.Y = c.Y + r * MathF.Sin(a);
+
+                        points[0] = p;
+                        break;
+                    }
+            }
+
+        }
+
+
+        internal void ApplyOtherValue(SvgPathItem item0, ViewInfo info, float oa)
+        {
+            switch (Command)
+            {
+                case 'C':
+                case 'c':
+                    {
+                        break;
+                    }
+                case 'M':
+                case 'l':
+                case 'L':
+                    {
+                        Vector2 p = item0.GetPoint();
+                        var c = info.PolygonCenter;
+                        float ofx = p.X - c.X;
+                        float ofy = p.Y - c.Y;
+                        float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
+
+                        float a = MathF.Atan2(ofy, ofx);
+                        a = a + oa * MathF.PI / 180;
+
+                        //
+                        float vc = MathF.Cos(a);
+                        p.X = c.X + r * vc;
+                        p.Y = c.Y + r * MathF.Sin(a);
+
+                        points[0] = p;
+                        break;
+                    }
+            }
         }
     }
 }
