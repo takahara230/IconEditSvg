@@ -156,7 +156,7 @@
                             <canvas:CanvasControl Name="Magnification" Draw="Magnification_Draw"/>
                         </Grid>
                     </Border>
-                    <ScrollViewer Grid.Row="2">
+                    <ScrollViewer Grid.Row="2" Width="340">
                         <ListView ItemsSource="{x:Bind ViewModel.Recordings}" Tapped="ListView_Tapped" Name="IconListView">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:Name="DoubleLineDataTemplate" x:DataType="local:PngFileItem">
