@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -56,6 +57,21 @@ namespace IconEditSvg
 
 
             return null;
+        }
+
+        internal static float Length(Vector2 pb, Vector2 pc)
+        {
+            return MathF.Sqrt(MathF.Pow(pb.X-pc.X, 2) + MathF.Pow(pb.Y-pc.Y, 2));
+        }
+
+        internal static void DebugWriteLine(string text)
+        {
+            System.Diagnostics.Debug.WriteLine(text);
+        }
+
+        internal static float ToAngle(float radian)
+        {
+            return radian * 180 / MathF.PI;
         }
     }
 }

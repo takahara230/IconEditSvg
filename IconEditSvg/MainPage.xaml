@@ -97,7 +97,7 @@
                             </AppBarToggleButton.Icon>
                         </AppBarToggleButton>
                         <AppBarSeparator/>
-                        <ComboBox x:Name="PolygonUnitComboBox" ItemsSource="{Binding SampleEnumNameDictionary}"
+                        <ComboBox x:Name="PolygonUnitComboBox" ItemsSource="{Binding PolygonUnitDictionary}"
                 DisplayMemberPath="Value"
                 SelectedValue="{Binding PolygonUnitValue, Mode=TwoWay}"
                 SelectedValuePath="Key" VerticalAlignment="Center" Width="150"

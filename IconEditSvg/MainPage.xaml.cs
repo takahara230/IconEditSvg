@@ -43,6 +43,7 @@ using Windows.System;
 
 namespace IconEditSvg
 {
+    public enum KeyCommand { Non, Up, Down, Left, Right, Del, Esc, Tab, PageUp, PageDown, Ins };
     public enum MouseEventKind { Press, Move, Release, Double };
     public class Command : ICommand
     {
@@ -81,11 +82,6 @@ namespace IconEditSvg
         public float Scale;
         public float OffsetX;
         public float OffsetY;
-        public int HoverItemIndex;
-        public int HoverItemPartIndex;
-        public int PressItemIndex;
-        public int PressItemPartIndex;
-        public Vector2 PolygonCenter;
         public SvgPathData TargetPathData;
 
         public ViewInfo()
@@ -93,16 +89,17 @@ namespace IconEditSvg
             Width = 80;
             Height = 80;
             Scale = 6;
-            HoverItemIndex = -1;
-            HoverItemPartIndex = -1;
-            PressItemIndex = -1;
-            PressItemPartIndex = -1;
+
+            HoverIndex = new SvgPathData.SvgPathIndex();
+            PressIndex = new SvgPathData.SvgPathIndex();
 
         }
 
         public string FolderPath { get; internal set; }
         public string FileName { get; internal set; }
         public SvgEditData TargetItem { get; internal set; }
+        public SvgPathData.SvgPathIndex HoverIndex { get; internal set; }
+        public SvgPathData.SvgPathIndex PressIndex { get; internal set; }
     };
 
     public class Item
@@ -199,7 +196,7 @@ namespace IconEditSvg
 
         internal void FocusMove()
         {
-             _= FocusManager.TryFocusAsync(Edit_ScrollViewer, FocusState.Programmatic);
+            _ = FocusManager.TryFocusAsync(Edit_ScrollViewer, FocusState.Programmatic);
         }
 
 #if false
@@ -231,25 +228,26 @@ namespace IconEditSvg
 #endif
         public enum PolygonUnit
         {
-            none=0,
+            none = 0,
             unit1,
             unit2,
             unit3,
             unit4,
 
         }
-        public Dictionary<PolygonUnit, string> SampleEnumNameDictionary { get; }
+        public Dictionary<PolygonUnit, string> PolygonUnitDictionary { get; }
      = new Dictionary<PolygonUnit, string>();
 
         // 画面とバインドしたい列挙型のプロパティ
-        private PolygonUnit _polygonUnitValue= PolygonUnit.unit4;
+        private PolygonUnit _polygonUnitValue = PolygonUnit.unit4;
         public PolygonUnit PolygonUnitValue
         {
             get => _polygonUnitValue;
-            set {
+            set
+            {
                 SetProperty(ref _polygonUnitValue, value);
                 //UpdatePolygonVlues();
-                if(m_viewInfo?.TargetPathData!=null)
+                if (m_viewInfo?.TargetPathData != null)
                     m_viewInfo.TargetPathData.UpdatePolygonVlues(_polygonUnitValue);
                 MainCanvas.Invalidate();
             }
@@ -310,13 +308,11 @@ namespace IconEditSvg
 
         public MainPage()
         {
-            SampleEnumNameDictionary.Add(PolygonUnit.none, "非多角形");
-            SampleEnumNameDictionary.Add(PolygonUnit.unit1, "反復数(1)");
-            SampleEnumNameDictionary.Add(PolygonUnit.unit2, "反復数(2)");
-            SampleEnumNameDictionary.Add(PolygonUnit.unit3, "反復数(3)");
-            SampleEnumNameDictionary.Add(PolygonUnit.unit4, "反復数(4)");
-
-
+            PolygonUnitDictionary.Add(PolygonUnit.none, "非多角形");
+            PolygonUnitDictionary.Add(PolygonUnit.unit1, "反復数(1)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit2, "反復数(2)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit3, "反復数(3)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit4, "反復数(4)");
 
             DataContext = this;
             this.InitializeComponent();
@@ -380,17 +376,9 @@ namespace IconEditSvg
 
         void OnAcceleratorKeyActivated(CoreDispatcher sender, AcceleratorKeyEventArgs e)
         {
-            //CmLog.debug("### Key={0} Event={1}, Handled={2} (WasKeyDown={3}, IsKeyReleased={4}, IsExtendedKey={5}, IsMenuKeyDown={6}) ", e.VirtualKey.ToString(), e.EventType.ToString(), e.Handled, e.KeyStatus.WasKeyDown, e.KeyStatus.IsKeyReleased, e.KeyStatus.IsExtendedKey, e.KeyStatus.IsMenuKeyDown);
-            //CmLog.debug("OnKeyActivated(EditorPage)");
             if (e.Handled)
                 return;
 
-
-            // Shareノートのチャット入力欄にフォーカスがあるときは、EditorPageでキーイベントを処理しないようにする。
-            // 現在、フォーカスによってキーイベントの取り合いが発生するのは、エディタ画面とチャット入力欄だけ（たぶん）なので、
-            // そのチェックだけを行うことにする。もし、今後、複数の入力欄が追加されるようなことになるなら、
-            // 登録/解除のような仕組みを検討する必要がある。
-            // on 2017.01.30 by M.TOYOTA for #2704
             var focused = FocusManager.GetFocusedElement();
             if (focused is TextBox || focused is GridViewItem)
                 return;
@@ -399,6 +387,7 @@ namespace IconEditSvg
             if (e.EventType == CoreAcceleratorKeyEventType.SystemKeyDown ||
                 e.EventType == CoreAcceleratorKeyEventType.KeyDown)
             {
+                KeyCommand KeyCmd = KeyCommand.Non;
                 int modifier = GetKeyModifier();
                 if (modifier == KEYMODIFIER_CONTROL)
                 {
@@ -407,38 +396,23 @@ namespace IconEditSvg
                     switch (e.VirtualKey)
                     {
                         case VirtualKey.Z:
-                            
                             break;
                         case VirtualKey.Y:   // 審議中
-                            
                             break;
                         case VirtualKey.C:
-                            
                             break;
                         case VirtualKey.V:
-                            
                             break;
                         case VirtualKey.X:
-                            
                             break;
                         case VirtualKey.A:
-                            
                             break;
                         case VirtualKey.B:
-                            
                             break;
                         case VirtualKey.I:
-                            
                             break;
                         case VirtualKey.U:
-                            
                             break;
-
-                        //// ToDo: 暫定的にCtrl+Mでビデオユニットを追加する
-                        //case VirtualKey.M:
-                        //    execKeyCommand(NtCommandManager.CMD_VIDEO_SELECT_PHOTOLIBRARY, null);
-                        //    break;
-
                         default:
                             break;
                     }
@@ -449,52 +423,50 @@ namespace IconEditSvg
                     {
                         case VirtualKey.Delete:
                         case VirtualKey.Back:
-                            
+
                             break;
                         case VirtualKey.Escape:
-                            
+                            KeyCmd = KeyCommand.Esc;
                             break;
                     }
-
                 }
 
-                string cmdKey = null;
                 switch (e.VirtualKey)
                 {
                     case VirtualKey.Left:
-                        
+                        KeyCmd = KeyCommand.Left;
                         break;
                     case VirtualKey.Up:
-                        
+                        KeyCmd = KeyCommand.Up;
                         break;
                     case VirtualKey.Right:
-                        
+                        KeyCmd = KeyCommand.Right;
                         break;
                     case VirtualKey.Down:
-                        
+                        KeyCmd = KeyCommand.Down;
                         break;
                     case VirtualKey.Home:
-                        
                         break;
                     case VirtualKey.End:
-                        
+
                         break;
                     case VirtualKey.PageUp:
-                        
+
                         break;
                     case VirtualKey.PageDown:
-                        
+
                         break;
                 }
-                if (null != cmdKey)
+                if (KeyCmd != KeyCommand.Non)
                 {
-
+                    KeyCommandExec(KeyCmd);
+                    handled = true;
                 }
             }
             else if (e.EventType == CoreAcceleratorKeyEventType.KeyUp ||
                      e.EventType == CoreAcceleratorKeyEventType.SystemKeyUp)
             {
-                
+
             }
             if (handled)
                 e.Handled = true;
@@ -776,7 +748,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         /// <param name="args"></param>
         private void RefCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
-            if(false) //if (PngFile200 != null)
+            if (false) //if (PngFile200 != null)
             {
                 float vw = m_viewInfo.Width * m_viewInfo.Scale;
                 float vh = m_viewInfo.Height * m_viewInfo.Scale;
@@ -876,29 +848,24 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 {
                 }
             }
-            if (m_viewInfo.TargetPathData != null)
+            if (m_viewInfo.TargetPathData != null && m_viewInfo.TargetPathData.IsExists())
             {
                 args.DrawingSession.Transform = new Matrix3x2(1, 0, 0, 1, x, y);
-                int index = 0;
-                
-                foreach (SvgPathItem item in m_viewInfo.TargetPathData)
+                m_viewInfo.TargetPathData.DrawCurrentSelectPath(args.DrawingSession, m_viewInfo);
+
+
+                var it = m_viewInfo.TargetPathData.GetEnumerator() as ItemEnumerator;
+                while (it.MoveNext())
                 {
-                    item.DrawAnchor(args.DrawingSession, m_viewInfo, index);
-                    index++;
+                    SvgPathItem item = it.Current as SvgPathItem;
+                    item.DrawAnchor(args.DrawingSession, m_viewInfo, it.GetPathIndex(0));
+
                 }
                 if (PolygonUnitValue != PolygonUnit.none)
                 {
-                    if (m_viewInfo.PolygonCenter != null)
-                    {
-                        float xc = m_viewInfo.PolygonCenter.X * m_viewInfo.Scale;
-                        float yc = m_viewInfo.PolygonCenter.Y * m_viewInfo.Scale;
-                        args.DrawingSession.FillEllipse(xc, yc, 4, 4, Colors.DodgerBlue);
-                    }
+                    m_viewInfo.TargetPathData.DrawPolygonCenter(m_viewInfo, args.DrawingSession, PolygonUnitValue);
                 }
-
             }
-
-
         }
 
         private void EditCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
@@ -965,7 +932,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         }
 
         private CanvasSvgDocument SvgDocOrg;
-//        private List<SvgPathItem> m_path;
+        //        private List<SvgPathItem> m_path;
         /// <summary>
         /// svgdata から指定サイズのWriteableBitmapを作成
         /// </summary>
@@ -1280,7 +1247,33 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         private void MainCanvas_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
+
             findItem(e, MouseEventKind.Release);
+
+            // Check for input device
+            if (e.Pointer.PointerDeviceType == Windows.Devices.Input.PointerDeviceType.Mouse)
+            {
+                var properties = e.GetCurrentPoint(MainCanvas).Properties;
+                if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
+                {
+                    var menu = new PopupMenu();
+                    menu.Commands.Add(new UICommand("角丸め", (cmd) =>
+                    {
+                        // クリックされたときに実行したい処理
+                        if (m_viewInfo.TargetPathData.InsRoundCorner()) {
+                            AllRelatedDataUpdate();
+                        }
+                    }));
+                    //await menu.ShowForSelectionAsync(GetElementRect(element));
+                    var pos = e.GetCurrentPoint(MainCanvas).Position;
+                    var pos0 = GetElementRect(MainCanvas);
+                    pos.X += pos0.X;
+                    pos.Y += pos0.Y;
+
+                    _ = menu.ShowForSelectionAsync(new Rect(pos.X, pos.Y, 4, 4));
+
+                }
+            }
         }
 
 
@@ -1298,69 +1291,71 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 var ptrPt = e.GetCurrentPoint(MainCanvas);
                 if (m_viewInfo.TargetPathData != null)
                 {
-                    int index = 0;
                     int partindex = -1;
+                    SvgPathData.SvgPathIndex mouseIndex = new SvgPathData.SvgPathIndex();
                     var pos = ptrPt.Position;
                     pos.X -= m_viewInfo.OffsetX;
                     pos.Y -= m_viewInfo.OffsetY;
                     //Debug.WriteLine("x;{0} y:{1}",pos.X,pos.Y);
-                    foreach (SvgPathItem item in m_viewInfo.TargetPathData)
+                    var it = m_viewInfo.TargetPathData.GetEnumerator() as ItemEnumerator;
+                    while (it.MoveNext())
                     {
+                        var item = it.Current as SvgPathItem;
                         //   item.DrawAnchor(args.DrawingSession, viewInfo.Scale);
                         partindex = item.HitTest(pos, m_viewInfo.Scale);
                         if (partindex >= 0)
                         {
+                            mouseIndex = it.GetPathIndex(partindex);
                             break;
                         }
-                        index++;
 
                     }
                     switch (kind)
                     {
                         case MouseEventKind.Move:
                             {
-                                if (m_viewInfo.HoverItemIndex >= 0 || partindex >= 0)
+                                if (m_viewInfo.HoverIndex.IsValid() || mouseIndex.IsValid())
                                 {
-                                    m_viewInfo.HoverItemIndex = index;
-                                    m_viewInfo.HoverItemPartIndex = partindex;
+                                    m_viewInfo.HoverIndex = mouseIndex;
                                     MainCanvas.Invalidate();
                                 }
                                 break;
                             }
                         case MouseEventKind.Press:
                             {
-                                Edit_ScrollViewer.Focus(FocusState.Programmatic);
-                                if (partindex >= 0)
+                                if (ptrPt.Properties.IsLeftButtonPressed)
                                 {
-                                    m_viewInfo.PressItemIndex = index;
-                                    m_viewInfo.PressItemPartIndex = partindex;
-
-                                }
-                                else
-                                {
-                                    m_viewInfo.PressItemIndex = -1;
-                                    m_viewInfo.PressItemPartIndex = -1;
+                                    Edit_ScrollViewer.Focus(FocusState.Programmatic);
+                                    if (m_viewInfo.HoverIndex.IsValid())
+                                    {
+                                        m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex(m_viewInfo.HoverIndex);
+                                    }
+                                    else
+                                    {
+                                        m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex();
+                                    }
                                 }
                                 break;
                             }
                         case MouseEventKind.Release:
                             {
-                                if (partindex >= 0 && m_viewInfo.PressItemIndex == index && m_viewInfo.PressItemPartIndex == partindex)
+                                if (m_viewInfo.PressIndex.IsValid())
                                 {
-                                    Info.TargetPathData.SelectHandle(index, partindex);
-                                    MainCanvas.Invalidate();
-                                }
-                                else if (Info.TargetPathData.IsSelectHandle())
-                                {
-                                    Info.TargetPathData.SelectHandle(-1, -1);
-                                    MainCanvas.Invalidate();
-                                }
-                                m_viewInfo.PressItemIndex = -1;
-                                m_viewInfo.PressItemPartIndex = -1;
+                                    if (m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
+                                    {
+                                        Info.TargetPathData.SelectHandle(m_viewInfo.PressIndex);
+                                        MainCanvas.Invalidate();
+                                    }
+                                    else if (Info.TargetPathData.IsSelectHandle())
+                                    {
+                                        Info.TargetPathData.SelectHandle(null);
+                                        MainCanvas.Invalidate();
+                                    }
+                                    m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex();
 
-                                UpdateCordinateInfo();
-                                EditCanvas.Focus(FocusState.Keyboard);
-
+                                    UpdateCordinateInfo();
+                                    EditCanvas.Focus(FocusState.Keyboard);
+                                }
                                 break;
                             }
                     }
@@ -1382,6 +1377,19 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         }
 
 
+        void AllRelatedDataUpdate()
+        {
+            List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
+
+            m_viewInfo.TargetItem.UpdateElement(m_path);
+            svgdata = m_svgXmlDoc.GetXml();
+            svgText.Text = svgdata;
+            updateTree();
+            UpdateSvg(true);
+            UpdateCordinateInfo();
+        }
+
+
 
         /// <summary>
         /// 
@@ -1390,7 +1398,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         /// <param name="y"></param>
         void ValueChange(float x, float y)
         {
-            if (Info.TargetPathData.ValueChange(x,y))
+            if (Info.TargetPathData.ValueChange(x, y))
             {
 
                 List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
@@ -1404,9 +1412,10 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }
         }
 
-        void PolygonChange(float r,float a)
+        void PolygonChange(float r, float a)
         {
-            if (Info.TargetPathData.PolygonChange(r, a, (int)PolygonUnitValue,Info)) {
+            if (Info.TargetPathData.PolygonChange(r, a, (int)PolygonUnitValue, Info))
+            {
                 ///
                 List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
 
@@ -1418,6 +1427,26 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 UpdateCordinateInfo();
             }
 
+        }
+        /// <summary>
+        /// 角丸め
+        /// </summary>
+        /// <param name="step"></param>
+        void RoundCorner(float step)
+        {
+            if (Info.TargetPathData.RoundCorner(step))
+            {
+                ///
+                List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
+
+                m_viewInfo.TargetItem.UpdateElement(m_path);
+                svgdata = m_svgXmlDoc.GetXml();
+                svgText.Text = svgdata;
+                updateTree();
+                UpdateSvg(true);
+                UpdateCordinateInfo();
+
+            }
         }
 
 
@@ -1442,7 +1471,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         void NextHandle(bool IsShift)
         {
-            if (Info.TargetPathData.NextHandle(IsShift)) {
+            if (Info.TargetPathData.NextHandle(IsShift))
+            {
                 MainCanvas.Invalidate();
                 UpdateCordinateInfo();
             }
@@ -1534,51 +1564,20 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             {
                 if (Info.TargetPathData.IsSelectHandle())
                 {
-                    if (PolygonUnitValue != PolygonUnit.none) {
+                    if (PolygonUnitValue != PolygonUnit.none)
+                    {
                         switch (e.Key)
                         {
-                            case VirtualKey.NumberPad8:
-                            case Windows.System.VirtualKey.Up:
-                                PolygonChange(0.1f, 0);
-                                break;
-                            case VirtualKey.NumberPad2:
-                            case Windows.System.VirtualKey.Down:
-                                PolygonChange(-0.1f, 0);
-                                break;
-                            case VirtualKey.NumberPad4:
-                            case Windows.System.VirtualKey.Left:
-                                PolygonChange(0, -1);
-                                break;
-                            case VirtualKey.NumberPad6:
-                            case Windows.System.VirtualKey.Right:
-                                PolygonChange(0, 1);
-                                break;
                             case Windows.System.VirtualKey.Tab:
                                 NextHandle(IsShiftKeyPressed);
                                 e.Handled = true;
                                 break;
                         }
                     }
-                    else {
-                        float s = 0.1f;
+                    else
+                    {
                         switch (e.Key)
                         {
-                            case VirtualKey.NumberPad8:
-                            case Windows.System.VirtualKey.Up:
-                                ValueChange(0, -s);
-                                break;
-                            case VirtualKey.NumberPad2:
-                            case Windows.System.VirtualKey.Down:
-                                ValueChange(0, s);
-                                break;
-                            case VirtualKey.NumberPad4:
-                            case Windows.System.VirtualKey.Left:
-                                ValueChange(-s, 0);
-                                break;
-                            case VirtualKey.NumberPad6:
-                            case Windows.System.VirtualKey.Right:
-                                ValueChange(s, 0);
-                                break;
                             case Windows.System.VirtualKey.Tab:
                                 NextHandle(IsShiftKeyPressed);
                                 e.Handled = true;
@@ -1589,44 +1588,95 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 }
                 else
                 {
-                    float s = IsShiftKeyPressed?0.5f:5f;
-                    switch (e.Key)
+                }
+            }
+            else if (_makeLineDrawing != null)
+            {
+            }
+
+        }
+
+        void KeyCommandExec(KeyCommand keyCmd)
+        {
+            if (Info.TargetPathData != null)
+            {
+                if (Info.TargetPathData.IsSelectHandle())
+                {
+                    if (PolygonUnitValue != PolygonUnit.none)
                     {
-                        case VirtualKey.NumberPad8:
-                        case Windows.System.VirtualKey.Up:
+                        switch (keyCmd)
+                        {
+                            case KeyCommand.Up:
+                                PolygonChange(0.1f, 0);
+                                break;
+                            case KeyCommand.Down:
+                                PolygonChange(-0.1f, 0);
+                                break;
+                            case KeyCommand.Left:
+                                PolygonChange(0, -1);
+                                break;
+                            case KeyCommand.Right:
+                                PolygonChange(0, 1);
+                                break;
+                            case KeyCommand.Tab:
+                                NextHandle(IsShiftKeyPressed);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        float s = 0.1f;
+                        switch (keyCmd)
+                        {
+                            case KeyCommand.Up:
+                                ValueChange(0, -s);
+                                break;
+                            case KeyCommand.Down:
+                                ValueChange(0, s);
+                                break;
+                            case KeyCommand.Left:
+                                ValueChange(-s, 0);
+                                break;
+                            case KeyCommand.Right:
+                                ValueChange(s, 0);
+                                break;
+                            case KeyCommand.Tab:
+                                NextHandle(IsShiftKeyPressed);
+                                break;
+                        }
+                    }
+                }
+                else
+                {
+                    float s = IsShiftKeyPressed ? 0.5f : 5f;
+                    switch (keyCmd)
+                    {
+                        case KeyCommand.Up:
                             MovePath(0, -s);
                             break;
-                        case VirtualKey.NumberPad2:
-                        case Windows.System.VirtualKey.Down:
+                        case KeyCommand.Down:
                             MovePath(0, s);
                             break;
-                        case VirtualKey.NumberPad4:
-                        case Windows.System.VirtualKey.Left:
+                        case KeyCommand.Left:
                             MovePath(-s, 0);
                             break;
-                        case VirtualKey.NumberPad6:
-                        case Windows.System.VirtualKey.Right:
+                        case KeyCommand.Right:
                             MovePath(s, 0);
                             break;
-                        case Windows.System.VirtualKey.Tab:
+                        case KeyCommand.Tab:
                             break;
                     }
                 }
             }
             else if (_makeLineDrawing != null)
             {
-                switch (e.Key)
+                switch (keyCmd)
                 {
-                    case Windows.System.VirtualKey.Escape:
+                    case KeyCommand.Esc:
                         _makeLineDrawing.CancelEvent();
-                        break;
-                    case Windows.System.VirtualKey.Up:
-                        break;
-                    case Windows.System.VirtualKey.Down:
                         break;
                 }
             }
-
         }
 
         private bool IsShiftKeyPressed
@@ -1652,7 +1702,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             {
                 //node.IsExpanded = !node.IsExpanded;
                 m_viewInfo.TargetItem = item;
-                m_viewInfo.TargetPathData = new SvgPathData(item,PolygonUnitValue);
+                m_viewInfo.TargetPathData = new SvgPathData(item, PolygonUnitValue);
                 DrawMode = false;
                 MainCanvas.Invalidate();
             }
@@ -2225,13 +2275,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             return new SvgPathItem(command, item);
         }
 
-        public SvgPathItem(char command, SvgPathItem item)
+        public SvgPathItem(char command, SvgPathItem befor)
         {
-            befor = item;
+            this.befor = befor;
             Command = command;
             index = 0;
             points = new List<Vector2>();
-            beforPoint = item == null ? new Vector2(0, 0) : item.GetPoint();
+            beforPoint = befor == null ? new Vector2(0, 0) : befor.GetPoint();
 
         }
 
@@ -2347,7 +2397,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         /// </summary>
         /// <param name="win2d"></param>
         /// <param name="scale"></param>
-        internal void DrawAnchor(CanvasDrawingSession win2d, ViewInfo viewInfo, int myIndex)
+        internal void DrawAnchor(CanvasDrawingSession win2d, ViewInfo viewInfo, SvgPathData.SvgPathIndex myIndex)
         {
             float scale = viewInfo.Scale;
             switch (Command)
@@ -2410,8 +2460,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }
         }
 
-        private void DrawAnchorSub(CanvasDrawingSession win2d, ViewInfo viewInfo, int myIndex, int partIndex, float x, float y)
+        private void DrawAnchorSub(CanvasDrawingSession win2d, ViewInfo viewInfo, SvgPathData.SvgPathIndex myIndex, int partIndex, float x, float y)
         {
+            myIndex.PartIndex = partIndex;
             bool ellipse = true;
             switch (Command)
             {
@@ -2423,12 +2474,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     break;
             }
 
-            bool hover = viewInfo.HoverItemIndex == myIndex;
-            bool select = viewInfo.TargetPathData.IsSameIndex(myIndex,partIndex);
+            //            bool hover = viewInfo.HoverIndex == myIndex;
+            bool select = viewInfo.TargetPathData.GetCurrentIndex() == myIndex;
 
             Color color = Colors.Blue;
             bool fill = false;
-            if (hover && viewInfo.HoverItemPartIndex == partIndex)
+            if (viewInfo.HoverIndex == myIndex)
             {
                 fill = true;
             }
@@ -2694,13 +2745,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             return Command != 'z' && Command != 'Z';
         }
 
-        internal void PolygonChange(ViewInfo info, float or, float oa)
+        internal void PolygonChange(ViewInfo info, float or, float oa, Vector2 center)
         {
             switch (Command)
             {
                 case 'C':
                 case 'c':
                     {
+
+
                         break;
                     }
                 case 'M':
@@ -2708,15 +2761,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 case 'L':
                     {
                         Vector2 p = points[0];
-                        var c = info.PolygonCenter;
+                        var c = center;
                         float ofx = p.X - c.X;
                         float ofy = p.Y - c.Y;
                         float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2)) + or;
                         r = MathF.Round(r, 1);
-                        float a = MathF.Atan2(ofy,ofx);
+                        float a = MathF.Atan2(ofy, ofx);
                         a = a + oa * MathF.PI / 180;
 
-                        a =  MathF.Round( a * 180 / MathF.PI) * MathF.PI/180;
+                        a = MathF.Round(a * 180 / MathF.PI) * MathF.PI / 180;
 
                         //
                         float vc = MathF.Cos(a);
@@ -2731,7 +2784,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         }
 
 
-        internal void ApplyOtherValue(SvgPathItem item0, ViewInfo info, float oa)
+        internal void ApplyOtherValue(SvgPathItem item0, ViewInfo info, float oa, Vector2 center)
         {
             switch (Command)
             {
@@ -2745,7 +2798,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 case 'L':
                     {
                         Vector2 p = item0.GetPoint();
-                        var c = info.PolygonCenter;
+                        var c = center;
                         float ofx = p.X - c.X;
                         float ofy = p.Y - c.Y;
                         float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
@@ -2762,6 +2815,164 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         break;
                     }
             }
+        }
+
+        internal bool IsZ()
+        {
+            return Command == 'z' || Command == 'Z';
+        }
+        internal bool IsC()
+        {
+            return Command == 'c' || Command == 'C';
+        }
+        internal bool IsL()
+        {
+            return Command == 'l' || Command == 'L' || Command == 'h' || Command == 'H' || Command == 'v' || Command == 'V';
+        }
+
+        internal void DrawPart(CanvasDrawingSession win2d, ViewInfo info)
+        {
+            switch (Command)
+            {
+                case 'c':
+                case 'C':
+                    {
+                        if (befor != null)
+                        {
+                            var bp = befor.GetPoint();
+                            bp.X *= info.Scale;
+                            bp.Y *= info.Scale;
+
+
+                            var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(win2d);
+
+                            int index = 0;
+                            index++;
+                            canvasPathBuilder.BeginFigure(bp);
+                            var p0 = points[0];
+                            var p1 = points[1];
+                            var p2 = points[2];
+                            p0.X *= info.Scale;
+                            p0.Y *= info.Scale;
+                            p1.X *= info.Scale;
+                            p1.Y *= info.Scale;
+                            p2.X *= info.Scale;
+                            p2.Y *= info.Scale;
+                            canvasPathBuilder.AddCubicBezier(p0, p1, p2);
+
+                            canvasPathBuilder.EndFigure(CanvasFigureLoop.Open);
+
+                            win2d.DrawGeometry(CanvasGeometry.CreatePath(canvasPathBuilder), Colors.HotPink, 1);
+
+                        }
+                    }
+                    break;
+                case 'l':
+                case 'L':
+                case 'h':
+                case 'H':
+                case 'v':
+                case 'V':
+                    {
+                        if (befor != null)
+                        {
+                            var bp = befor.GetPoint();
+                            bp.X *= info.Scale;
+                            bp.Y *= info.Scale;
+
+
+                            var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(win2d);
+
+                            int index = 0;
+                            index++;
+                            canvasPathBuilder.BeginFigure(bp);
+                            var p0 = points[0];
+                            p0.X *= info.Scale;
+                            p0.Y *= info.Scale;
+
+                            canvasPathBuilder.AddLine(p0);
+
+                            canvasPathBuilder.EndFigure(CanvasFigureLoop.Open);
+
+                            win2d.DrawGeometry(CanvasGeometry.CreatePath(canvasPathBuilder), Colors.HotPink, 1);
+
+                        }
+                    }
+                    break;
+
+            }
+        }
+
+        internal void SetBefor(SvgPathItem cp)
+        {
+            befor = cp;
+            beforPoint = befor.GetPoint();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pn"></param>
+        /// <returns></returns>
+        internal SvgPathItem CreateRoundCorner(Vector2 pn)
+        {
+            var pc = GetPoint();
+            var pb = befor.GetPoint();
+
+            var a1 = MathF.Atan2(pc.Y - pb.Y, pc.X - pb.X);//傾き
+            var a2 = MathF.Atan2(pn.Y - pc.Y, pn.X - pc.X);//次の線の傾き
+            var a = (a1 + a2) / 2;
+            a = MathF.Abs(a);
+            if (a > MathF.PI)
+            {
+                a -= MathF.PI;
+            }
+            
+            float r = 2;
+            float v = 0;
+
+            
+            v = r / MathF.Tan(a); // 半径r円の接点の頂点からの距離
+            float l1 = CmUtils.Length(pb, pc); // 自分の線の長さ
+            float l2 = CmUtils.Length(pc, pn); // 次の線の長さ
+            if (l1 < v || l2 < v) return null;
+
+
+            var citem = new SvgPathItem('C', this);
+
+            var x = MathF.Cos(a1) * v;
+            var y = MathF.Sin(a1) * v;
+            var p1 = new Vector2(pc.X - x, pc.Y - y);
+            x = MathF.Cos(a2) * v;
+            y = MathF.Sin(a2) * v;
+            var p2 = new Vector2(pc.X + x, pc.Y + y);
+
+
+            var c = r * 0.5522847f; // 半径rの円弧に近似するためのコントロールポイントの長さ
+
+            x = MathF.Cos(a1) * c;
+            y = MathF.Sin(a1) * c;
+            var c1 = new Vector2(p1.X + x, p1.Y + y);
+            x = MathF.Cos(a2) * c;
+            y = MathF.Sin(a2) * c;
+            var c2 = new Vector2(p2.X - x, p2.Y - y);
+
+            var points = new List<Vector2>();
+            points.Add(c1);
+            points.Add(c2);
+            points.Add(p2);
+            citem.SetPoints(points);
+
+            this.points[0] = p1;
+
+            CmUtils.DebugWriteLine(string.Format("a1:{0:0.00},a2:{1:0.00},vl:{2:0.00},cl:{3:0.00}",CmUtils.ToAngle(a1), CmUtils.ToAngle(a2), v,c));
+
+            return citem;
+        }
+
+        private void SetPoints(List<Vector2> points)
+        {
+            this.points = points;
         }
     }
 }
