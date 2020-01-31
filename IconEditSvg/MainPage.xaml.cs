@@ -1260,7 +1260,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     menu.Commands.Add(new UICommand("角丸め", (cmd) =>
                     {
                         // クリックされたときに実行したい処理
-                        if (m_viewInfo.TargetPathData.InsRoundCorner()) {
+                        if (m_viewInfo.TargetPathData.InsRoundCorner())
+                        {
                             AllRelatedDataUpdate();
                         }
                     }));
@@ -1339,23 +1340,20 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             }
                         case MouseEventKind.Release:
                             {
-                                if (m_viewInfo.PressIndex.IsValid())
+                                if (m_viewInfo.PressIndex.IsValid() && m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
                                 {
-                                    if (m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
-                                    {
-                                        Info.TargetPathData.SelectHandle(m_viewInfo.PressIndex);
-                                        MainCanvas.Invalidate();
-                                    }
-                                    else if (Info.TargetPathData.IsSelectHandle())
-                                    {
-                                        Info.TargetPathData.SelectHandle(null);
-                                        MainCanvas.Invalidate();
-                                    }
-                                    m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex();
-
-                                    UpdateCordinateInfo();
-                                    EditCanvas.Focus(FocusState.Keyboard);
+                                    Info.TargetPathData.SelectHandle(m_viewInfo.PressIndex);
+                                    MainCanvas.Invalidate();
                                 }
+                                else if (Info.TargetPathData.IsSelectHandle())
+                                {
+                                    Info.TargetPathData.SelectHandle(null);
+                                    MainCanvas.Invalidate();
+                                }
+                                m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex();
+
+                                UpdateCordinateInfo();
+                                EditCanvas.Focus(FocusState.Keyboard);
                                 break;
                             }
                     }
@@ -2671,6 +2669,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             p.X += x;
                             p.Y += y;
                             points[partIndex] = p;
+                            if (partIndex == 2)
+                            {
+                                p = points[1];
+                                p.X += x;
+                                p.Y += y;
+                                points[1] = p;
+                            }
                         }
                         break;
                     }
@@ -2752,8 +2757,14 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 case 'C':
                 case 'c':
                     {
+                        Vector2 p = points[2];
+                        Vector2 ps = p;
+                        p = CalcRotatePosition(p, center, oa, or);
+                        points[2] = p;
 
-
+                        var cp = points[1];
+                        cp = CalcRotatePosition2(cp, center, ps, p);
+                        points[1] = cp;
                         break;
                     }
                 case 'M':
@@ -2761,29 +2772,20 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 case 'L':
                     {
                         Vector2 p = points[0];
-                        var c = center;
-                        float ofx = p.X - c.X;
-                        float ofy = p.Y - c.Y;
-                        float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2)) + or;
-                        r = MathF.Round(r, 1);
-                        float a = MathF.Atan2(ofy, ofx);
-                        a = a + oa * MathF.PI / 180;
-
-                        a = MathF.Round(a * 180 / MathF.PI) * MathF.PI / 180;
-
-                        //
-                        float vc = MathF.Cos(a);
-                        p.X = c.X + r * vc;
-                        p.Y = c.Y + r * MathF.Sin(a);
-
+                        p = CalcRotatePosition(p, center, oa, or);
                         points[0] = p;
                         break;
                     }
             }
-
         }
 
-
+        /// <summary>
+        /// 渡されたアイテムを回転した値にセット。
+        /// </summary>
+        /// <param name="item0"></param>
+        /// <param name="info"></param>
+        /// <param name="oa"></param>
+        /// <param name="center"></param>
         internal void ApplyOtherValue(SvgPathItem item0, ViewInfo info, float oa, Vector2 center)
         {
             switch (Command)
@@ -2791,6 +2793,16 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 case 'C':
                 case 'c':
                     {
+                        if (item0.IsC())
+                        {
+                            Vector2 p = item0.GetPoint();
+                            p = CalcRotatePosition(p, center, oa);
+                            points[2] = p;
+
+                            p = item0.GetControlPoint(true);
+                            p = CalcRotatePosition(p, center, oa);
+                            points[1] = p;
+                        }
                         break;
                     }
                 case 'M':
@@ -2798,25 +2810,104 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 case 'L':
                     {
                         Vector2 p = item0.GetPoint();
-                        var c = center;
-                        float ofx = p.X - c.X;
-                        float ofy = p.Y - c.Y;
-                        float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
-
-                        float a = MathF.Atan2(ofy, ofx);
-                        a = a + oa * MathF.PI / 180;
-
-                        //
-                        float vc = MathF.Cos(a);
-                        p.X = c.X + r * vc;
-                        p.Y = c.Y + r * MathF.Sin(a);
-
+                        p = CalcRotatePosition(p, center, oa);
                         points[0] = p;
                         break;
                     }
             }
         }
 
+        private Vector2 GetControlPoint(bool second)
+        {
+            return points[second ? 1 : 0];
+        }
+
+        static Vector2 CalcRotatePosition(Vector2 p, Vector2 center, float oa)
+        {
+            var c = center;
+            float ofx = p.X - c.X;
+            float ofy = p.Y - c.Y;
+            float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
+
+            float a = MathF.Atan2(ofy, ofx);
+            a = a + oa * MathF.PI / 180;
+
+            //
+            p.X = c.X + r * MathF.Cos(a);
+            p.Y = c.Y + r * MathF.Sin(a);
+            return p;
+        }
+        /// <summary>
+        /// center を基準に指定角度、指定長さ変更した位置を計算、角度は1度、長さは0.1で丸めます、
+        /// </summary>
+        /// <param name="p"></param>
+        /// <param name="center"></param>
+        /// <param name="oa"></param>
+        /// <param name="or"></param>
+        /// <returns></returns>
+        static Vector2 CalcRotatePosition(Vector2 p, Vector2 center, float oa, float or)
+        {
+            var c = center;
+            float ofx = p.X - c.X;
+            float ofy = p.Y - c.Y;
+            float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2)) + or;
+            r = MathF.Round(r, 1);
+            float a = MathF.Atan2(ofy, ofx);
+            a = a + oa * MathF.PI / 180;
+
+            a = MathF.Round(a * 180 / MathF.PI) * MathF.PI / 180;
+
+            //
+            float vc = MathF.Cos(a);
+            p.X = c.X + r * vc;
+            p.Y = c.Y + r * MathF.Sin(a);
+
+            return p;
+        }
+
+        /// <summary>
+        /// コントロールポイントの回転、元のアンカーポイント(po)との角度を保持したまま アンカーポイント(pn)に移動いた時の位置を計算
+        /// </summary>
+        /// <param name="p"></param>
+        /// <param name="center"></param>
+        /// <param name="po"></param>
+        /// <param name="pn"></param>
+        /// <returns></returns>
+        static Vector2 CalcRotatePosition2(Vector2 p, Vector2 center, Vector2 po, Vector2 pc)
+        {
+            float radApOriginal = MathF.Atan2(po.Y - center.Y, po.X - center.X); //アンカーポイントの角度
+            float radCpOriginal = MathF.Atan2(p.Y - po.Y, p.X - po.X);// コントロールポイントの角度
+            float radApCurrent = MathF.Atan2(pc.Y - center.Y, pc.X - center.X);
+            float rad = radCpOriginal + (radApCurrent - radApOriginal);
+            float l = MathF.Sqrt(MathF.Pow(p.X - po.X, 2) + MathF.Pow(p.Y - po.Y, 2));
+            p.X = l * MathF.Cos(rad)+pc.X;
+            p.Y = l * MathF.Sin(rad)+pc.Y;
+
+            return p;
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="p"></param>
+        internal void SetPoint(Vector2 p)
+        {
+            switch (Command)
+            {
+                case 'M':
+                case 'm':
+                    points[0] = p;
+                    break;
+
+            }
+        }
+
+
+        internal bool IsM()
+        {
+            return Command == 'm' || Command == 'M';
+        }
         internal bool IsZ()
         {
             return Command == 'z' || Command == 'Z';
@@ -2927,11 +3018,11 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             {
                 a -= MathF.PI;
             }
-            
+
             float r = 2;
             float v = 0;
 
-            
+
             v = r / MathF.Tan(a); // 半径r円の接点の頂点からの距離
             float l1 = CmUtils.Length(pb, pc); // 自分の線の長さ
             float l2 = CmUtils.Length(pc, pn); // 次の線の長さ
@@ -2965,7 +3056,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             this.points[0] = p1;
 
-            CmUtils.DebugWriteLine(string.Format("a1:{0:0.00},a2:{1:0.00},vl:{2:0.00},cl:{3:0.00}",CmUtils.ToAngle(a1), CmUtils.ToAngle(a2), v,c));
+            CmUtils.DebugWriteLine(string.Format("a1:{0:0.00},a2:{1:0.00},vl:{2:0.00},cl:{3:0.00}", CmUtils.ToAngle(a1), CmUtils.ToAngle(a2), v, c));
 
             return citem;
         }
@@ -2973,6 +3064,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         private void SetPoints(List<Vector2> points)
         {
             this.points = points;
+        }
+
+        internal void AdjustSymmetric(SvgPathItem item)
+        {
+            if (!IsC() || !item.IsC()) return;
+            var c = item.GetControlPoint(true);
+            var p = item.GetPoint();
+
+            c.X = p.X + (p.X - c.X);
+            c.Y = p.Y + (p.Y - c.Y);
+            points[0] = c;
         }
     }
 }

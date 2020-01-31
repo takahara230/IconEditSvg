@@ -57,7 +57,8 @@ namespace IconEditSvg
                     if (item.IsZ())
                     {
                         var item2 = path[path.Count - 2];
-                        if (item2.IsC()) {
+                        if (item2.IsC())
+                        {
                             currentIndex = 1;
                         }
                     }
@@ -85,12 +86,14 @@ namespace IconEditSvg
 
     public class SvgPathData : IEnumerable
     {
-        public class SvgPathIndex {
+        public class SvgPathIndex
+        {
 
             public int BlockIndex { get; set; }
             public int ItemIndex { get; set; }
             public int PartIndex { get; set; }
-            public SvgPathIndex() {
+            public SvgPathIndex()
+            {
                 BlockIndex = -1;
             }
 
@@ -145,26 +148,26 @@ namespace IconEditSvg
 
 
         }
-    
-        
+
+
 
         SvgPathIndex CurrentIndex;
-        
-        
+
+
         List<List<SvgPathItem>> Paths;
 
         public SvgPathData()
         {
-            
+
         }
 
-        public SvgPathData(SvgEditData item,PolygonUnit polygonUnitValue)
+        public SvgPathData(SvgEditData item, PolygonUnit polygonUnitValue)
         {
             CurrentIndex = new SvgPathIndex();
             var m_path = item.GetPathData();
             Paths = new List<List<SvgPathItem>>();
             List<SvgPathItem> path = null;
-            if (m_path!=null)
+            if (m_path != null)
             {
                 foreach (var p in m_path)
                 {
@@ -185,6 +188,7 @@ namespace IconEditSvg
 
         internal void UpdatePolygonVlues(MainPage.PolygonUnit polygonUnitValue)
         {
+            // データパース時に中心位置をあらかじめ計算していたが、今はその都度。
         }
 
         /// <summary>
@@ -194,9 +198,9 @@ namespace IconEditSvg
         /// <returns></returns>
         static Vector2 CalcCenter(List<SvgPathItem> m_path)
         {
-            int offset = IsLastC(m_path)?1:0;
+            int offset = IsLastC(m_path) ? 1 : 0;
 
-            var n = (m_path.Count - (1+offset));
+            var n = (m_path.Count - (1 + offset));
             var item0 = m_path[0];
             var n1 = n / 2;
             var item1 = m_path[n1];
@@ -235,7 +239,8 @@ namespace IconEditSvg
             if (!item.IsL() || !(next.IsL() || next.IsZ())) return false;
 
 
-            if (next.IsZ()) {
+            if (next.IsZ())
+            {
                 next = path[0]; // M のはず！
             }
             var pn = next.GetPoint();
@@ -272,6 +277,27 @@ namespace IconEditSvg
                 var m_path = Paths[CurrentIndex.BlockIndex];
                 var item = m_path[CurrentIndex.ItemIndex];
                 item.ValueChange(CurrentIndex.PartIndex, x, y);
+                if (item.IsC() && CurrentIndex.PartIndex==2)
+                {
+                    int nextindex = CurrentIndex.ItemIndex + 1;
+                    if (nextindex >= m_path.Count)
+                        nextindex = 0;
+                    SvgPathItem next = m_path[nextindex];
+                    if (next.IsZ())
+                    {
+                        next = m_path[0];
+                        if (next.IsM())
+                        {
+                            next.ValueChange(0, x, y);
+                            nextindex = 1;
+                            next = m_path[nextindex];
+                        }
+                    }
+                    if (next.IsC())
+                    {
+                        next.ValueChange(0, x, y);
+                    }
+                }
 
                 return true;
 
@@ -279,7 +305,8 @@ namespace IconEditSvg
             return false;
         }
 
-        internal bool PolygonChange(float r, float a,int unit, ViewInfo info)
+
+        internal bool PolygonChange(float r, float a, int unit, ViewInfo info)
         {
             if (!CurrentIndex.IsValid())
                 return false;
@@ -287,31 +314,89 @@ namespace IconEditSvg
             if (!IsConsistentAsPolygonData(unit, m_path))
                 return false;
             var count = m_path.Count - 1;
+            bool lastSame = false;
+            if (IsSameLast(m_path))
+            {
+                lastSame = true;
+                count--;
+            }
             var index = CurrentIndex.ItemIndex;
             var partIndex = CurrentIndex.PartIndex;
             if (index >= 0)
             {
                 var center = CalcCenter(m_path);
                 var item0 = m_path[index];
-                item0.PolygonChange(info, r, a,center);
+                item0.PolygonChange(info, r, a, center);
+                if (item0.IsC())
+                {
+                    // ベジェ曲線の場合隣のコントロールポイントを
+                    int ni = GetNextIndex(m_path, index); // 隣のCのインデックスを返す。(
+                    var item2 = m_path[ni];
+                    item2.AdjustSymmetric(item0);
+                }
+                if (lastSame && index == count) {
+                    var p = item0.GetPoint();
+                    var item = m_path[0];
+                    item.SetPoint(p);
+                }
 
 
                 int unitcount = count / unit;
                 for (int ix = 1; ix < unitcount; ix++)
                 {
                     index += unit;
-                    if (index >= count)
+                    if (lastSame)
                     {
-                        index = index - count;
+                        if (index > count)
+                        {
+                            index = index - count;
+                        }
+                    }
+                    else
+                    {
+                        if (index >= count)
+                        {
+                            index = index - count;
+                        }
                     }
                     var item = m_path[index];
-                    item.ApplyOtherValue(item0, info, (360.0f / count * unit) * ix,center);
+                    item.ApplyOtherValue(item0, info, (360.0f / count * unit) * ix, center);
+                    if (item.IsC()) {
+                        int ni = GetNextIndex(m_path,index); // 隣のCのインデックスを返す。(
+                        var item2 = m_path[ni];
+                        item2.AdjustSymmetric(item);
+                    }
+                    if (lastSame && index == count)
+                    {
+                        // M の位置を変更
+                        var p = item.GetPoint();
+                        item = m_path[0];
+                        item.SetPoint(p);
+                    }
                 }
 
                 return true;
             }
             return false;
 
+        }
+
+        int GetNextIndex(List<SvgPathItem> path, int index)
+        {
+            index++;
+            if (path.Count-1> index) {
+                return index;
+            }
+            if (path.Count <= index) {
+                index = 1;
+            }
+            var item = path[index];
+            if (item.IsZ())
+            {
+                return 1;
+            }
+
+            return index;
         }
 
 
@@ -332,19 +417,34 @@ namespace IconEditSvg
         /// 多角形データとして矛盾が無いか
         /// </summary>
         /// <returns></returns>
-        bool IsConsistentAsPolygonData(int unit,List<SvgPathItem> path)
+        bool IsConsistentAsPolygonData(int unit, List<SvgPathItem> path)
         {
-            if (path == null || path.Count<3)
+            if (path == null || path.Count < 3)
                 return false;
             var item = path[path.Count - 1];
             if (item.Command != 'z' && item.Command != 'Z') return false;
 
-            int count = path.Count - 1; 
+            int count = path.Count - 1;
+            if (IsSameLast(path))
+                count--;
+
+
             if (count < unit * 2) return false;
             if (count % unit != 0) return false;
 
 
             return true;
+        }
+
+        bool IsSameLast(List<SvgPathItem> path)
+        {
+            if (path == null || path.Count < 3)
+                return false;
+            var item = path[path.Count - 2];
+            var itemM = path[0];
+            var p1 = item.GetPoint();
+            var p0 = itemM.GetPoint();
+            return p1 == p0;
         }
 
         /// <summary>
@@ -368,7 +468,7 @@ namespace IconEditSvg
 
             if (CurrentIndex.IsValid())
             {
-                var m_path = Paths[ CurrentIndex.BlockIndex];
+                var m_path = Paths[CurrentIndex.BlockIndex];
                 var item = m_path[CurrentIndex.ItemIndex];
                 if (item.NextHandle(CurrentIndex.PartIndex, IsShift))
                 {
@@ -438,12 +538,12 @@ namespace IconEditSvg
 
         public bool SelectBlock(int i)
         {
-            if (Paths == null || Paths.Count==0) return false;
+            if (Paths == null || Paths.Count == 0) return false;
 
             if (Paths.Count <= i) return false;
 
             CurrentIndex.BlockIndex = i;
-            
+
             return true;
         }
 
@@ -461,8 +561,11 @@ namespace IconEditSvg
                 var m_path = Paths[CurrentIndex.BlockIndex];
                 if (polygonUnitValue != MainPage.PolygonUnit.none)
                 {
+                    int unit = (int)polygonUnitValue;
                     var count = m_path.Count - 1;
-                    if (count >= 8 && count % 2 == 0)
+                    if (IsSameLast(m_path))
+                        count--;
+                    if (count >= unit*2 && count % 2 == 0)
                     {
                         var PolygonCenter = CalcCenter(m_path);
                         string text = string.Format("中心：{0:0.0} {1:0.0}", PolygonCenter.X, PolygonCenter.Y);
