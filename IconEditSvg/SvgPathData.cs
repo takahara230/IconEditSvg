@@ -234,6 +234,7 @@ namespace IconEditSvg
             var path = Paths[CurrentIndex.BlockIndex];
             if (path.Count <= CurrentIndex.ItemIndex + 1) return false;
             var item = path[CurrentIndex.ItemIndex];
+            // M の時は未対応
             var next = path[CurrentIndex.ItemIndex + 1];
 
             if (!item.IsL() || !(next.IsL() || next.IsZ())) return false;
@@ -251,6 +252,35 @@ namespace IconEditSvg
 
             return true;
         }
+
+
+        /// <summary>
+        /// 角丸め
+        /// </summary>
+        /// <param name="step"></param>
+        /// <returns></returns>
+        internal bool RoundCorner(float step)
+        {
+            if (!CurrentIndex.IsValid())
+                return false;
+
+            var path = Paths[CurrentIndex.BlockIndex];
+            if (path.Count <= CurrentIndex.ItemIndex + 1) return false;
+            var item = path[CurrentIndex.ItemIndex];
+            if (!item.IsC()) return false;
+
+            var nextIndex = GetNextIndex2(path, CurrentIndex.ItemIndex);
+            var previousIndex = GetPreviousIndex(path, CurrentIndex.ItemIndex);
+            if (nextIndex == previousIndex || nextIndex==-1 || previousIndex==-1) return false;
+
+            var next = path[nextIndex];
+            var previous = path[previousIndex];
+
+            if (!(previous.IsM() || previous.IsL()) && !(next.IsL() || next.IsM())) return false;
+
+            return item.RoundCorner(previous, next, step);
+        }
+
 
         private SvgPathItem GetItem(SvgPathIndex currentIndex)
         {
@@ -399,19 +429,66 @@ namespace IconEditSvg
             return index;
         }
 
+        int GetNextIndex2(List<SvgPathItem> path, int index)
+        {
+            index++;
+            if (index >= path.Count) return -1;
+
+            if (path.Count - 1 == index)
+            {
+                if (path[index].IsZ()) {
+                    if (IsSameLast(path))
+                        return 1;
+                    else
+                        return 0;
+                }
+            }
+            return index;
+        }
+
 
         /// <summary>
-        /// 角丸め
+        /// 有効な1つ前のインデックスを返す
         /// </summary>
-        /// <param name="step"></param>
+        /// <param name="path"></param>
+        /// <param name="index"></param>
         /// <returns></returns>
-        internal bool RoundCorner(float step)
+        int GetPreviousIndex(List<SvgPathItem> path, int index)
         {
-            if (!CurrentIndex.IsValid())
-                return false;
-
-            return false;
+            index--;
+            if (index < 0)
+            {
+                index = path.Count - 1;
+            }
+            var item = path[index];
+            if (index == path.Count - 1)
+            {
+                if (item.IsZ())
+                {
+                    return path.Count - 2;
+                }
+                else
+                {
+                    return -1;
+                }
+            }
+            else if (index == 0)
+            {
+                if (path[path.Count - 1].IsZ())
+                {
+                    if (IsSameLast(path))
+                    {
+                        return path.Count - 2;
+                    }
+                }
+            }
+            return index;
         }
+
+
+
+
+
 
         /// <summary>
         /// 多角形データとして矛盾が無いか
@@ -507,7 +584,7 @@ namespace IconEditSvg
                 var index = CurrentIndex.ItemIndex;
                 int step = IsShift ? -1 : 1;
                 int ix = 0;
-                for (; ix < 2; ix++)
+                for (; ix < 3; ix++)
                 {
                     index += step;
                     if (index < 0)
@@ -521,13 +598,19 @@ namespace IconEditSvg
 
 
                     var item = m_path[index];
+                    if (item.IsM()) {
+                        if (IsSameLast(m_path)) {
+                            continue;
+                        }
+                    }
                     if (item.NotZ())
                     {
                         break;
                     }
                 }
-                if (ix == 2)
+                if (ix == 3)
                 {
+                    // エラー
                     index = -1;
                 }
                 CurrentIndex.ItemIndex = index;

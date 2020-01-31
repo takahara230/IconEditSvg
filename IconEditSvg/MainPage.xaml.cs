@@ -451,10 +451,10 @@ namespace IconEditSvg
 
                         break;
                     case VirtualKey.PageUp:
-
+                        KeyCmd = KeyCommand.PageUp;
                         break;
                     case VirtualKey.PageDown:
-
+                        KeyCmd = KeyCommand.PageDown;
                         break;
                 }
                 if (KeyCmd != KeyCommand.Non)
@@ -1434,16 +1434,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         {
             if (Info.TargetPathData.RoundCorner(step))
             {
-                ///
-                List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
-
-                m_viewInfo.TargetItem.UpdateElement(m_path);
-                svgdata = m_svgXmlDoc.GetXml();
-                svgText.Text = svgdata;
-                updateTree();
-                UpdateSvg(true);
-                UpdateCordinateInfo();
-
+                AllRelatedDataUpdate();
             }
         }
 
@@ -1640,6 +1631,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 break;
                             case KeyCommand.Tab:
                                 NextHandle(IsShiftKeyPressed);
+                                break;
+                            case KeyCommand.PageDown:
+                                RoundCorner(-1);
+                                break;
+                            case KeyCommand.PageUp:
+                                RoundCorner(1);
                                 break;
                         }
                     }
@@ -3075,6 +3072,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             c.X = p.X + (p.X - c.X);
             c.Y = p.Y + (p.Y - c.Y);
             points[0] = c;
+        }
+
+        internal bool RoundCorner(SvgPathItem previous, SvgPathItem next, float step)
+        {
+
+            return false;
         }
     }
 }
