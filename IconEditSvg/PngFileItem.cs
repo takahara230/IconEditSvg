@@ -33,6 +33,7 @@ namespace IconEditSvg
     }
     public class RecordingViewModel
     {
+
         private PngFileItem defaultRecording = new PngFileItem();
         public PngFileItem DefaultRecording { get { return this.defaultRecording; } }
 
@@ -86,26 +87,52 @@ namespace IconEditSvg
             List<string> png100s = new List<string>();
             List<string> png200s = new List<string>();
 
-
+            // 両方ある場合は片方のみリストに表示
             foreach (StorageFile file in fileList)
             {
                 string name = file.Name;
                 if (!name.EndsWith(".png"))
                     continue;
-                if (name.EndsWith(".scale-100.png"))
-                {
-                    png100s.Add(name);
+                if (App.ForMac) {
+                    if (name.EndsWith("@2x.png"))
+                    {
+                        png200s.Add(name);
+                    }
+                    else
+                    {
+                        png100s.Add(name);
+                    }
                 }
-                else if (name.EndsWith(".scale-200.png")) {
-                    png200s.Add(name);
-                } else {
-                    pngs.Add(name);
+                else
+                {
+                    if (name.EndsWith(".scale-100.png"))
+                    {
+                        png100s.Add(name);
+                    }
+                    else if (name.EndsWith(".scale-200.png"))
+                    {
+                        png200s.Add(name);
+                    }
+                    else
+                    {
+                        pngs.Add(name);
+                    }
                 }
             }
-
-            foreach (string name in png100s) {
-                string name200 = name.Replace(".scale-100.png", ".scale-200.png");
-                png200s.Remove(name200);
+            if (App.ForMac) {
+                foreach (string name in png100s)
+                {
+                    string name200 = name.Replace(".png", "@2x.png");
+                    png200s.Remove(name200);
+                }
+            }
+            else
+            {
+                foreach (string name in png100s)
+                {
+                    string name200 = name.Replace(".scale-100.png", ".scale-200.png");
+                    png200s.Remove(name200);
+                }
             }
 
             foreach (string name in png100s)

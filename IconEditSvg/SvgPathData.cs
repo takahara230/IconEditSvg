@@ -37,7 +37,7 @@ namespace IconEditSvg
         }
         public bool MoveNext()
         {
-            if (paths == null) return false;
+            if (paths == null || paths.Count==0) return false;
 
             currentIndex++;
             if (paths[blockIndex].Count <= currentIndex)
@@ -146,7 +146,11 @@ namespace IconEditSvg
                 return BlockIndex ^ ItemIndex ^ PartIndex;
             }
 
-
+            internal void DeSelected()
+            {
+                ItemIndex = -1;
+                PartIndex = -1;
+            }
         }
 
 
@@ -169,10 +173,14 @@ namespace IconEditSvg
             List<SvgPathItem> path = null;
             if (m_path != null)
             {
+                SvgPathItem top = null;
+                SvgPathItem befor = null;
                 foreach (var p in m_path)
                 {
                     if (p.Command == 'm' || p.Command == 'M')
                     {
+                        befor = null;
+                        top = p;
                         path = new List<SvgPathItem>();
                         path.Add(p);
                         Paths.Add(path);
@@ -181,6 +189,10 @@ namespace IconEditSvg
                     {
                         path.Add(p);
                     }
+                    if (befor != null) {
+                        befor.Next = p;   
+                    }
+                    befor = p;
                 }
                 UpdatePolygonVlues(polygonUnitValue);
             }
@@ -267,18 +279,9 @@ namespace IconEditSvg
             var path = Paths[CurrentIndex.BlockIndex];
             if (path.Count <= CurrentIndex.ItemIndex + 1) return false;
             var item = path[CurrentIndex.ItemIndex];
-            if (!item.IsC()) return false;
+            if (!(item.IsC() && CurrentIndex.PartIndex==2)) return false;
 
-            var nextIndex = GetNextIndex2(path, CurrentIndex.ItemIndex);
-            var previousIndex = GetPreviousIndex(path, CurrentIndex.ItemIndex);
-            if (nextIndex == previousIndex || nextIndex==-1 || previousIndex==-1) return false;
-
-            var next = path[nextIndex];
-            var previous = path[previousIndex];
-
-            if (!(previous.IsM() || previous.IsL()) && !(next.IsL() || next.IsM())) return false;
-
-            return item.RoundCorner(previous, next, step);
+            return item.RoundCorner(path,CurrentIndex.ItemIndex,step);
         }
 
 
@@ -390,7 +393,7 @@ namespace IconEditSvg
                         }
                     }
                     var item = m_path[index];
-                    item.ApplyOtherValue(item0, info, (360.0f / count * unit) * ix, center);
+                    item.ApplyOtherValue(item0, (360.0f / count * unit) * ix, center);
                     if (item.IsC()) {
                         int ni = GetNextIndex(m_path,index); // 隣のCのインデックスを返す。(
                         var item2 = m_path[ni];
@@ -409,6 +412,76 @@ namespace IconEditSvg
             }
             return false;
 
+        }
+
+        internal bool PointChange(KeyCommand keyCmd, PolygonUnit polygonUnitValue, ViewInfo info)
+        {
+            var item = GetItem(CurrentIndex);
+            if (item == null) return false;
+
+            int unit = (int)polygonUnitValue;
+            var m_path = Paths[CurrentIndex.BlockIndex];
+            if (unit > 0) { 
+                if (!IsConsistentAsPolygonData(unit, m_path))
+                    return false;
+            }
+            switch (keyCmd) {
+                case KeyCommand.Home:
+                case KeyCommand.End:
+                case KeyCommand.PageUp:
+                case KeyCommand.PageDown:
+                    if (!(polygonUnitValue != PolygonUnit.none || item.IsC() && (CurrentIndex.PartIndex == 0 || CurrentIndex.PartIndex == 1)))
+                    {
+                        if (item.IsC() && CurrentIndex.PartIndex == 2)
+                        {
+                            if(keyCmd == KeyCommand.PageUp)
+                                return RoundCorner(1);
+                            else if(keyCmd == KeyCommand.PageDown)
+                                return RoundCorner(-1);
+                            // 面取り
+                        }
+                        return false;
+                    }
+                    break;
+            }
+
+            bool res = false;
+
+            float dr = 0;
+            float da = 0;
+            float dx = 0;
+            float dy = 0;
+            switch (keyCmd)
+            {
+                case KeyCommand.Home:
+                    dr = 0.1f;
+                    break;
+                case KeyCommand.End:
+                    dr = -0.1f;
+                    break;
+                case KeyCommand.PageUp:
+                    da = 1.0f;
+                    break;
+                case KeyCommand.PageDown:
+                    da = -1.0f;
+                    break;
+                case KeyCommand.Up:
+                    dy = -0.1f;
+                    break;
+                case KeyCommand.Down:
+                    dy = 0.1f;
+                    break;
+                case KeyCommand.Left:
+                    dx = -0.1f;
+                    break;
+                case KeyCommand.Right:
+                    dx = 0.1f;
+                    break;
+            }
+            res = item.PointChange(unit, CurrentIndex.PartIndex, dx, dy, da, dr);
+
+
+            return res;
         }
 
         int GetNextIndex(List<SvgPathItem> path, int index)
@@ -494,7 +567,7 @@ namespace IconEditSvg
         /// 多角形データとして矛盾が無いか
         /// </summary>
         /// <returns></returns>
-        bool IsConsistentAsPolygonData(int unit, List<SvgPathItem> path)
+        internal static bool IsConsistentAsPolygonData(int unit, List<SvgPathItem> path)
         {
             if (path == null || path.Count < 3)
                 return false;
@@ -513,7 +586,7 @@ namespace IconEditSvg
             return true;
         }
 
-        bool IsSameLast(List<SvgPathItem> path)
+        internal static bool IsSameLast(List<SvgPathItem> path)
         {
             if (path == null || path.Count < 3)
                 return false;
@@ -529,16 +602,43 @@ namespace IconEditSvg
         /// </summary>
         /// <param name="x"></param>
         /// <param name="y"></param>
-        internal void MovePath(float x, float y)
+        internal bool MovePath(float x, float y)
         {
-            if (!CurrentIndex.IsValid()) return;
-
-            var m_path = Paths[CurrentIndex.BlockIndex];
-            foreach (var item in m_path)
+            if (Paths == null || Paths.Count == 0) return false;
+            for (int i = 0; i < Paths.Count; i++)
             {
-                item.MoveAll(x, y);
+                if (CurrentIndex.IsValid()) {
+                    if (i != CurrentIndex.BlockIndex) continue;
+                }
+                var m_path = Paths[i];
+                if (m_path.Count == 0) continue;
+                foreach (var item in m_path)
+                {
+                    item.MoveAll(x, y);
+                }
             }
+            return true;
         }
+        internal bool ResizePath(float ratio)
+        {
+            if (Paths == null || Paths.Count == 0) return false;
+            Vector2 center = new Vector2(0, 0);
+            for (int i = 0; i < Paths.Count; i++)
+            {
+                if (CurrentIndex.IsValid())
+                {
+                    if (i != CurrentIndex.BlockIndex) continue;
+                }
+                var m_path = Paths[i];
+                if (m_path.Count == 0) continue;
+                foreach (var item in m_path)
+                {
+                    item.ResizePath(ratio, center);
+                }
+            }
+            return true;
+        }
+
 
         internal bool NextHandle(bool IsShift)
         {
@@ -667,6 +767,11 @@ namespace IconEditSvg
                             text += string.Format(" 半径 {0:0.00} 角度 {1:0.00}", r, ToAngle(a));
 
 
+                            var partIndex = CurrentIndex.PartIndex; // 
+                            string info = item.GetInfo(partIndex,true);
+                            text += info;
+
+
                         }
                         return text;
                     }
@@ -760,6 +865,79 @@ namespace IconEditSvg
             if (!CurrentIndex.IsValid()) return;
             var item = Paths[CurrentIndex.BlockIndex][CurrentIndex.ItemIndex];
             item.DrawPart(win2d, info);
+        }
+
+        internal static void SetPreviusPoint(List<SvgPathItem> path, int index, Vector2 p1)
+        {
+            SvgPathItem pre = null;
+            Vector2? pm=null;
+            index--;
+            if (index < 0) {
+                index = path.Count - 1;
+            }
+            pre = path[index];
+            if (pre.IsM()) {
+                pm = pre.GetPoint();
+                pre.SetPoint(p1);
+            }
+            if (pre.IsZ()) {
+                index--;
+                pre = path[index];
+            }
+            if (pm == null)
+            {
+                pre.SetPoint(p1);
+            }
+            else
+            {
+                var p = pre.GetPoint();
+                if (p == pm) {
+                    pre.SetPoint(p1);
+                }
+            }
+        }
+
+        internal static void SetSameNextPoint(List<SvgPathItem> path, int index)
+        {
+            var item = path[index];
+            var cp = item.GetPoint();
+            index++;
+            if (index >= path.Count) return;
+            if (index == path.Count - 1) {
+                item = path[index];
+                if (!item.IsZ()) return;
+                item = path[0];
+                if (cp == item.GetPoint()) {
+                    item.SetPoint(cp);
+                }
+            }
+        }
+
+        internal SvgPathItem GetSelectedItem()
+        {
+            if(!CurrentIndex.IsValid())
+                return null;
+
+
+            var path = Paths[CurrentIndex.BlockIndex];
+            return path[CurrentIndex.ItemIndex];
+        }
+
+        internal bool ConvertToCurve()
+        {
+            if (!CurrentIndex.IsValid())
+                return false;
+
+
+            var item = GetSelectedItem();
+            return item.ConvertToCurve();
+        }
+
+        internal void DeSelected()
+        {
+            if (CurrentIndex.IsValid()) {
+                CurrentIndex.DeSelected();
+            }
         }
 
     }

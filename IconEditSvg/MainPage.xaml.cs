@@ -43,7 +43,7 @@ using Windows.System;
 
 namespace IconEditSvg
 {
-    public enum KeyCommand { Non, Up, Down, Left, Right, Del, Esc, Tab, PageUp, PageDown, Ins };
+    public enum KeyCommand { Non, Up, Down, Left, Right, Del, Esc, Tab, PageUp, PageDown, Ins ,Home,End };
     public enum MouseEventKind { Press, Move, Release, Double };
     public class Command : ICommand
     {
@@ -318,6 +318,7 @@ namespace IconEditSvg
             this.InitializeComponent();
             //Window.Current.CoreWindow.KeyDown += CoreWindow_KeyDown;
             Window.Current.CoreWindow.Dispatcher.AcceleratorKeyActivated += OnAcceleratorKeyActivated;
+            Window.Current.CoreWindow.PointerWheelChanged += CoreWindow_PointerWheelChanged;
 
 
             this.Loaded += MainPage_Loaded;
@@ -355,6 +356,11 @@ namespace IconEditSvg
                     }
                 });
             }
+        }
+
+        private void CoreWindow_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
+        {
+            
         }
 
         const int KEYMODIFIER_ALT = 1;
@@ -446,9 +452,10 @@ namespace IconEditSvg
                         KeyCmd = KeyCommand.Down;
                         break;
                     case VirtualKey.Home:
+                        KeyCmd = KeyCommand.Home;
                         break;
                     case VirtualKey.End:
-
+                        KeyCmd = KeyCommand.End;
                         break;
                     case VirtualKey.PageUp:
                         KeyCmd = KeyCommand.PageUp;
@@ -1256,22 +1263,39 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 var properties = e.GetCurrentPoint(MainCanvas).Properties;
                 if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
                 {
-                    var menu = new PopupMenu();
-                    menu.Commands.Add(new UICommand("角丸め", (cmd) =>
+                    SvgPathItem selectedItem = Info.TargetPathData.GetSelectedItem();
+                    if (selectedItem!=null)
                     {
-                        // クリックされたときに実行したい処理
-                        if (m_viewInfo.TargetPathData.InsRoundCorner())
+                        
+                        var menu = new PopupMenu();
+                        if (selectedItem.IsL())
                         {
-                            AllRelatedDataUpdate();
+                            menu.Commands.Add(new UICommand("ベジェに変換", (cmd) =>
+                            {
+                                if (Info.TargetPathData.ConvertToCurve()) {
+                                    AllRelatedDataUpdate();
+                                }
+                            }));
+                            menu.Commands.Add(new UICommand("角丸め", (cmd) =>
+                            {
+                                // クリックされたときに実行したい処理
+                                if (m_viewInfo.TargetPathData.InsRoundCorner())
+                                {
+                                    AllRelatedDataUpdate();
+                                }
+                            }));
                         }
-                    }));
-                    //await menu.ShowForSelectionAsync(GetElementRect(element));
-                    var pos = e.GetCurrentPoint(MainCanvas).Position;
-                    var pos0 = GetElementRect(MainCanvas);
-                    pos.X += pos0.X;
-                    pos.Y += pos0.Y;
+                        menu.Commands.Add(new UICommand("削除", (cmd) =>
+                        {
+                        }));
+                        //await menu.ShowForSelectionAsync(GetElementRect(element));
+                        var pos = e.GetCurrentPoint(MainCanvas).Position;
+                        var pos0 = GetElementRect(MainCanvas);
+                        pos.X += pos0.X;
+                        pos.Y += pos0.Y;
 
-                    _ = menu.ShowForSelectionAsync(new Rect(pos.X, pos.Y, 4, 4));
+                        _ = menu.ShowForSelectionAsync(new Rect(pos.X, pos.Y, 4, 4));
+                    }
 
                 }
             }
@@ -1289,7 +1313,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             var ptr = e.Pointer;
             if (ptr.PointerDeviceType == Windows.Devices.Input.PointerDeviceType.Mouse)
             {
-                var ptrPt = e.GetCurrentPoint(MainCanvas);
+                var properties = e.GetCurrentPoint(MainCanvas).Properties;
+                if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased) {
+                    return;
+                }
+
+                    var ptrPt = e.GetCurrentPoint(MainCanvas);
                 if (m_viewInfo.TargetPathData != null)
                 {
                     int partindex = -1;
@@ -1347,7 +1376,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 }
                                 else if (Info.TargetPathData.IsSelectHandle())
                                 {
-                                    Info.TargetPathData.SelectHandle(null);
+                                    Info.TargetPathData.DeSelected();
                                     MainCanvas.Invalidate();
                                 }
                                 m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex();
@@ -1426,6 +1455,14 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }
 
         }
+        void PointChange(KeyCommand keyCommand)
+        {
+            if (Info.TargetPathData.PointChange(keyCommand,PolygonUnitValue,Info))
+            {
+                AllRelatedDataUpdate();
+            }
+
+        }
         /// <summary>
         /// 角丸め
         /// </summary>
@@ -1446,16 +1483,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         /// <param name="y"></param>
         void MovePath(float x, float y)
         {
-            Info.TargetPathData.MovePath(x, y);
-            List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
-            //-------------------------- 
+            if (Info.TargetPathData.MovePath(x, y)) {
+                AllRelatedDataUpdate();
+            }
+        }
 
-            m_viewInfo.TargetItem.UpdateElement(m_path);
-            svgdata = m_svgXmlDoc.GetXml();
-            svgText.Text = svgdata;
-            updateTree();
-            UpdateSvg(true);
-            //            UpdateCordinateInfo();
+        void ResizePath(float ratio)
+        {
+            if (Info.TargetPathData.ResizePath(ratio))
+            {
+                AllRelatedDataUpdate();
+            }
         }
 
         void NextHandle(bool IsShift)
@@ -1591,6 +1629,52 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             {
                 if (Info.TargetPathData.IsSelectHandle())
                 {
+                    if (!IsControlKeyPressed)
+                    {
+                        switch (keyCmd)
+                        {
+                            case KeyCommand.Home:
+                            case KeyCommand.End:
+                            case KeyCommand.PageUp:
+                            case KeyCommand.PageDown:
+                            case KeyCommand.Up:
+                            case KeyCommand.Down:
+                            case KeyCommand.Left:
+                            case KeyCommand.Right:
+                                PointChange(keyCmd);
+                                break;
+                            case KeyCommand.Tab:
+                                NextHandle(IsShiftKeyPressed);
+                                break;
+                        }
+                    }
+                    else {
+                        float s = IsShiftKeyPressed ? 0.5f : 5f;
+                        switch (keyCmd)
+                        {
+                            case KeyCommand.Up:
+                                MovePath(0, -s);
+                                break;
+                            case KeyCommand.Down:
+                                MovePath(0, s);
+                                break;
+                            case KeyCommand.Left:
+                                MovePath(-s, 0);
+                                break;
+                            case KeyCommand.Right:
+                                MovePath(s, 0);
+                                break;
+                            case KeyCommand.PageUp:
+                                ResizePath(1.1f);
+                                break;
+                            case KeyCommand.PageDown:
+                                ResizePath(0.9f);
+                                break;
+                            case KeyCommand.Tab:
+                                break;
+                        }
+                    }
+#if false
                     if (PolygonUnitValue != PolygonUnit.none)
                     {
                         switch (keyCmd)
@@ -1640,6 +1724,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 break;
                         }
                     }
+#endif
                 }
                 else
                 {
@@ -1657,6 +1742,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             break;
                         case KeyCommand.Right:
                             MovePath(s, 0);
+                            break;
+                        case KeyCommand.PageUp:
+                            ResizePath(1.1f);
+                            break;
+                        case KeyCommand.PageDown:
+                            ResizePath(0.9f);
                             break;
                         case KeyCommand.Tab:
                             break;
@@ -1687,8 +1778,21 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }
         }
 
+        private bool IsControlKeyPressed
+        {
+            get
+            {
+                var state = Window.Current.CoreWindow.GetKeyState(VirtualKey.Control);
+                if ((state & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down)
+                {
+                    return true;
+                }
+                return false;
+            }
+        }
 
-        #endregion
+
+#endregion
         private void SampleTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
         {
             var node = args.InvokedItem as TreeViewNode;
@@ -1812,10 +1916,19 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     m_viewInfo.FolderPath = folder;
                     string name0 = Path.GetFileName(path);
                     string name1 = null;
-                    int num = name0.IndexOf(".scale-100");
-                    if (num > 0)
-                    {
-                        name1 = name0.Replace(".scale-100", ".scale-200");
+                    if (App.ForMac) {
+                        int num = name0.IndexOf(".png");
+                        if (num > 0)
+                        {
+                            name1 = name0.Replace(".png", "@2x.png");
+                        }
+                    }
+                    else {
+                        int num = name0.IndexOf(".scale-100");
+                        if (num > 0)
+                        {
+                            name1 = name0.Replace(".scale-100", ".scale-200");
+                        }
                     }
                     try
                     {
@@ -2217,6 +2330,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             {
                                 svgPathItems.Add(item);
                             }
+                            if (c == 'm' || c=='M') {
+                                item = null;
+                            }
                             item = SvgPathItem.Create(c, item);
                         }
                         break;
@@ -2249,835 +2365,4 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
     }
 
-    public class SvgPathItem
-    {
-        List<Vector2> points;
-        public char Command;
-
-        private SvgPathItem befor;
-        private int index;
-        private Vector2 current;
-        private Vector2 beforPoint;
-
-        float rx;   //水平方向の半径
-        float ry;//垂直方向の半径
-        float x_axis_rotation; //楕円の傾き
-        int large_arc_flag; // 1:円弧の長い方を採用，0:短い方を採用
-        int sweep_flag;//円弧の方向 1: 時計回りを採用，0:半時計回りを採用
-
-        public static SvgPathItem Create(char command, SvgPathItem item)
-        {
-            return new SvgPathItem(command, item);
-        }
-
-        public SvgPathItem(char command, SvgPathItem befor)
-        {
-            this.befor = befor;
-            Command = command;
-            index = 0;
-            points = new List<Vector2>();
-            beforPoint = befor == null ? new Vector2(0, 0) : befor.GetPoint();
-
-        }
-
-        public void SetNum(string num)
-        {
-            float fnum;
-            if (float.TryParse(num, out fnum))
-            {
-                bool relative = Char.IsLower(Command) ? true : false;
-                switch (Command)
-                {
-                    case 'a':
-                    case 'A':
-                        {
-                            switch (index)
-                            {
-                                case 0:
-                                    rx = fnum;
-                                    break;
-                                case 1:
-                                    ry = fnum;
-                                    break;
-                                case 2:
-                                    x_axis_rotation = fnum;
-                                    break;
-                                case 3:
-                                    large_arc_flag = (int)fnum;
-                                    break;
-                                case 4:
-                                    sweep_flag = (int)fnum;
-                                    break;
-                                case 5:
-                                    current = new Vector2(fnum + (relative ? beforPoint.X : 0), 0);
-                                    break;
-                                case 6:
-                                    current = new Vector2(current.X, fnum + (relative ? beforPoint.Y : 0));
-                                    points.Add(current);
-                                    break;
-                            }
-                            break;
-                        }
-                    case 'h':
-                    case 'H':
-                        {
-                            current = new Vector2(fnum + (relative ? beforPoint.X : 0), beforPoint.Y);
-                            points.Add(current);
-                            break;
-                        }
-                    case 'v':
-                    case 'V':
-                        {
-                            current = new Vector2(beforPoint.X, fnum + (relative ? beforPoint.Y : 0));
-                            points.Add(current);
-                            break;
-                        }
-                    default:
-                        {
-                            if (index % 2 == 0)
-                            {
-                                current = new Vector2(fnum + (relative ? beforPoint.X : 0), 0);
-                            }
-                            else
-                            {
-                                current = new Vector2(current.X, fnum + (relative ? beforPoint.Y : 0));
-                                points.Add(current);
-                                if (Command == 'l')
-                                {
-                                    beforPoint = current;
-                                }
-                            }
-                        }
-                        break;
-                }
-            }
-            index++;
-
-        }
-
-        public Vector2 GetPoint()
-        {
-            if (points.Count != 0)
-            {
-                return points[points.Count - 1];
-            }
-            return new Vector2(0, 0);
-        }
-
-        public Color GetColor()
-        {
-            switch (Command)
-            {
-                case 'M':
-                    return Colors.Purple;
-                case 'h':
-                case 'H':
-                case 'v':
-                case 'V':
-                case 'l':
-                case 'L':
-                    return Colors.OrangeRed;
-                case 'c':
-                case 'C':
-                    return Colors.Green;
-                case 'a':
-                case 'A':
-                    return Colors.HotPink;
-                default:
-                    return Colors.Blue;
-            }
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="win2d"></param>
-        /// <param name="scale"></param>
-        internal void DrawAnchor(CanvasDrawingSession win2d, ViewInfo viewInfo, SvgPathData.SvgPathIndex myIndex)
-        {
-            float scale = viewInfo.Scale;
-            switch (Command)
-            {
-                case 'M':
-                case 'h':
-                case 'H':
-                case 'v':
-                case 'V':
-                case 'l':
-                case 'L':
-                    int partindex = 0;
-                    foreach (Vector2 point in points)
-                    {
-                        float x = (float)point.X * scale;
-                        float y = (float)point.Y * scale;
-                        DrawAnchorSub(win2d, viewInfo, myIndex, partindex, x, y);
-                        partindex++;
-                    }
-                    break;
-                case 'c':
-                case 'C':
-                    if (points.Count == 3)
-                    {
-                        Vector2 point = points[2];
-                        float x = (float)point.X * scale;
-                        float y = (float)point.Y * scale;
-
-                        DrawAnchorSub(win2d, viewInfo, myIndex, 2, x, y);
-
-                        Vector2 p0 = befor.GetPoint();
-                        float x0 = (float)p0.X * scale;
-                        float y0 = (float)p0.Y * scale;
-
-                        Vector2 p1 = points[0];
-                        float x1 = (float)p1.X * scale;
-                        float y1 = (float)p1.Y * scale;
-                        win2d.DrawLine(x0, y0, x1, y1, Colors.Green);
-                        DrawAnchorSub(win2d, viewInfo, myIndex, 0, x1, y1);
-
-
-                        Vector2 p2 = points[1];
-                        float x2 = (float)p2.X * scale;
-                        float y2 = (float)p2.Y * scale;
-                        win2d.DrawLine(x, y, x2, y2, Colors.Green);
-                        DrawAnchorSub(win2d, viewInfo, myIndex, 1, x2, y2);
-                    }
-                    break;
-                case 'a':
-                case 'A':
-                    foreach (Vector2 point in points)
-                    {
-                        float x = (float)point.X * scale;
-                        float y = (float)point.Y * scale;
-                        DrawAnchorSub(win2d, viewInfo, myIndex, 0, x, y);
-                    }
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        private void DrawAnchorSub(CanvasDrawingSession win2d, ViewInfo viewInfo, SvgPathData.SvgPathIndex myIndex, int partIndex, float x, float y)
-        {
-            myIndex.PartIndex = partIndex;
-            bool ellipse = true;
-            switch (Command)
-            {
-                case 'c':
-                case 'C':
-                    ellipse = false;
-                    break;
-                default:
-                    break;
-            }
-
-            //            bool hover = viewInfo.HoverIndex == myIndex;
-            bool select = viewInfo.TargetPathData.GetCurrentIndex() == myIndex;
-
-            Color color = Colors.Blue;
-            bool fill = false;
-            if (viewInfo.HoverIndex == myIndex)
-            {
-                fill = true;
-            }
-            else if (select)
-            {
-                color = GetColor();
-                fill = true;
-            }
-            else
-            {
-                color = GetColor();
-            }
-            int size = 4;
-            if (ellipse)
-            {
-                if (fill)
-                {
-                    win2d.FillEllipse(x, y, size, size, color);
-                }
-                else
-                {
-                    win2d.DrawEllipse(x, y, size, size, color);
-                }
-            }
-            else
-            {
-                Rect r = new Rect(x - size, y - size, size * 2, size * 2);
-                if (fill)
-                {
-                    win2d.FillRectangle(r, color);
-                }
-                else
-                {
-                    win2d.DrawRectangle(r, color);
-                }
-
-            }
-
-        }
-
-
-        internal int HitTest(Point mousePoint, float scale)
-        {
-            switch (Command)
-            {
-                case 'M':
-                case 'h':
-                case 'H':
-                case 'v':
-                case 'V':
-                case 'l':
-                case 'L':
-                    int index = 0;
-                    foreach (Vector2 point in points)
-                    {
-                        float x = (float)point.X * scale;
-                        float y = (float)point.Y * scale;
-                        if (IsNear(x, y, mousePoint.X, mousePoint.Y))
-                        {
-                            return index;
-                        }
-                        index++;
-                    }
-                    break;
-                case 'c':
-                case 'C':
-                    if (points.Count == 3)
-                    {
-                        Vector2 point = points[2];
-                        float x = (float)point.X * scale;
-                        float y = (float)point.Y * scale;
-                        //win2d.DrawEllipse(x, y, 3, 3, Colors.Green);
-                        if (IsNear(x, y, mousePoint.X, mousePoint.Y))
-                        {
-                            return 2;
-                        }
-
-
-                        Vector2 p0 = befor.GetPoint();
-                        float x0 = (float)p0.X * scale;
-                        float y0 = (float)p0.Y * scale;
-
-                        Vector2 p1 = points[0];
-                        float x1 = (float)p1.X * scale;
-                        float y1 = (float)p1.Y * scale;
-                        if (IsNear(x1, y1, mousePoint.X, mousePoint.Y))
-                        {
-                            return 0;
-                        }
-
-
-                        Vector2 p2 = points[1];
-                        float x2 = (float)p2.X * scale;
-                        float y2 = (float)p2.Y * scale;
-
-
-
-                        if (IsNear(x2, y2, mousePoint.X, mousePoint.Y))
-                        {
-                            return 1;
-                        }
-
-                    }
-                    break;
-                case 'a':
-                case 'A':
-                    foreach (Vector2 point in points)
-                    {
-                        float x = (float)point.X * scale;
-                        float y = (float)point.Y * scale;
-                        if (IsNear(x, y, mousePoint.X, mousePoint.Y))
-                        {
-                            return 0;
-                        }
-                    }
-                    break;
-                default:
-                    break;
-            }
-            return -1;
-        }
-
-        bool IsNear(double x0, double y0, double x1, double y1)
-        {
-            if (Math.Pow(x0 - x1, 2) + Math.Pow(y0 - y1, 2) < 16)
-                return true;
-
-            return false;
-        }
-
-        public string GetInfo(int partIndex)
-        {
-            string label = "座標";
-            Vector2 p = points[0];
-            switch (Command)
-            {
-                case 'C':
-                case 'c':
-                    {
-                        if (points.Count == 3)
-                        {
-                            p = points[2];
-                            if (partIndex == 2)
-                            {
-                                label = string.Format("座標 {0} {1:0.00} {2:0.00} ", Command, p.X, p.Y);
-                            }
-                            else if (partIndex == 0)
-                            {
-                                p = befor.GetPoint();
-                                Vector2 c = points[0];
-                                c.X = c.X - p.X;
-                                c.Y = c.Y - p.Y;
-                                double r = Math.Sqrt(c.X * c.X + c.Y * c.Y) / 0.5522847;
-                                label = string.Format("座標 {0} {1:0.00} {2:0.00} c1 {3:0.00} {4:0.00} r:{5:0.00} ", Command, p.X, p.Y, c.X, c.Y, r);
-                            }
-                            else
-                            {
-                                Vector2 c = points[1];
-                                c.X = c.X - p.X;
-                                c.Y = c.Y - p.Y;
-                                double r = Math.Sqrt(c.X * c.X + c.Y * c.Y) / 0.5522847;
-                                label = string.Format("座標 {0} {1:0.00} {2:0.00} c1 {3:0.00} {4:0.00} r:{5:0.00} ", Command, p.X, p.Y, c.X, c.Y, r);
-                            }
-                        }
-                        break;
-
-                    }
-                default:
-                    return string.Format("座標 {0} {1:0.00} {2:0.00} ", Command, p.X, p.Y);
-            }
-            return label;
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="partIndex"></param>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        internal void ValueChange(int partIndex, float x, float y)
-        {
-            switch (Command)
-            {
-                case 'C':
-                case 'c':
-                    {
-                        if (points.Count == 3)
-                        {
-                            Vector2 p = points[partIndex];
-                            p.X += x;
-                            p.Y += y;
-                            points[partIndex] = p;
-                            if (partIndex == 2)
-                            {
-                                p = points[1];
-                                p.X += x;
-                                p.Y += y;
-                                points[1] = p;
-                            }
-                        }
-                        break;
-                    }
-                case 'M':
-                case 'l':
-                case 'L':
-                    {
-                        Vector2 p = points[partIndex];
-                        p.X += x;
-                        p.Y += y;
-                        points[partIndex] = p;
-                        break;
-                    }
-            }
-        }
-
-        internal void MoveAll(float x, float y)
-        {
-            if (points != null && points.Count > 0)
-            {
-                for (int ix = 0; ix < points.Count; ix++)
-                {
-                    Vector2 p = points[ix];
-                    p.X += x;
-                    p.Y += y;
-                    points[ix] = p;
-                }
-            }
-        }
-
-        internal string Encode()
-        {
-            string path = "";
-            var c = Command;
-            c = Char.ToUpper(c);
-            if (c == 'V' || c == 'H')
-            {
-                c = 'L';
-            }
-            path = path + c;
-            foreach (Vector2 point in points)
-            {
-                path = path + string.Format("{0:0.00} {1:0.00} ", point.X, point.Y);
-            }
-
-            return path;
-        }
-
-        internal bool NextHandle(int partIndex, bool IsShift)
-        {
-            if (IsShift)
-            {
-                return partIndex != 0;
-            }
-            else
-            {
-                if (points.Count > partIndex + 1)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        internal int LastPartIndex()
-        {
-            return points.Count - 1;
-        }
-
-        internal bool NotZ()
-        {
-            return Command != 'z' && Command != 'Z';
-        }
-
-        internal void PolygonChange(ViewInfo info, float or, float oa, Vector2 center)
-        {
-            switch (Command)
-            {
-                case 'C':
-                case 'c':
-                    {
-                        Vector2 p = points[2];
-                        Vector2 ps = p;
-                        p = CalcRotatePosition(p, center, oa, or);
-                        points[2] = p;
-
-                        var cp = points[1];
-                        cp = CalcRotatePosition2(cp, center, ps, p);
-                        points[1] = cp;
-                        break;
-                    }
-                case 'M':
-                case 'l':
-                case 'L':
-                    {
-                        Vector2 p = points[0];
-                        p = CalcRotatePosition(p, center, oa, or);
-                        points[0] = p;
-                        break;
-                    }
-            }
-        }
-
-        /// <summary>
-        /// 渡されたアイテムを回転した値にセット。
-        /// </summary>
-        /// <param name="item0"></param>
-        /// <param name="info"></param>
-        /// <param name="oa"></param>
-        /// <param name="center"></param>
-        internal void ApplyOtherValue(SvgPathItem item0, ViewInfo info, float oa, Vector2 center)
-        {
-            switch (Command)
-            {
-                case 'C':
-                case 'c':
-                    {
-                        if (item0.IsC())
-                        {
-                            Vector2 p = item0.GetPoint();
-                            p = CalcRotatePosition(p, center, oa);
-                            points[2] = p;
-
-                            p = item0.GetControlPoint(true);
-                            p = CalcRotatePosition(p, center, oa);
-                            points[1] = p;
-                        }
-                        break;
-                    }
-                case 'M':
-                case 'l':
-                case 'L':
-                    {
-                        Vector2 p = item0.GetPoint();
-                        p = CalcRotatePosition(p, center, oa);
-                        points[0] = p;
-                        break;
-                    }
-            }
-        }
-
-        private Vector2 GetControlPoint(bool second)
-        {
-            return points[second ? 1 : 0];
-        }
-
-        static Vector2 CalcRotatePosition(Vector2 p, Vector2 center, float oa)
-        {
-            var c = center;
-            float ofx = p.X - c.X;
-            float ofy = p.Y - c.Y;
-            float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
-
-            float a = MathF.Atan2(ofy, ofx);
-            a = a + oa * MathF.PI / 180;
-
-            //
-            p.X = c.X + r * MathF.Cos(a);
-            p.Y = c.Y + r * MathF.Sin(a);
-            return p;
-        }
-        /// <summary>
-        /// center を基準に指定角度、指定長さ変更した位置を計算、角度は1度、長さは0.1で丸めます、
-        /// </summary>
-        /// <param name="p"></param>
-        /// <param name="center"></param>
-        /// <param name="oa"></param>
-        /// <param name="or"></param>
-        /// <returns></returns>
-        static Vector2 CalcRotatePosition(Vector2 p, Vector2 center, float oa, float or)
-        {
-            var c = center;
-            float ofx = p.X - c.X;
-            float ofy = p.Y - c.Y;
-            float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2)) + or;
-            r = MathF.Round(r, 1);
-            float a = MathF.Atan2(ofy, ofx);
-            a = a + oa * MathF.PI / 180;
-
-            a = MathF.Round(a * 180 / MathF.PI) * MathF.PI / 180;
-
-            //
-            float vc = MathF.Cos(a);
-            p.X = c.X + r * vc;
-            p.Y = c.Y + r * MathF.Sin(a);
-
-            return p;
-        }
-
-        /// <summary>
-        /// コントロールポイントの回転、元のアンカーポイント(po)との角度を保持したまま アンカーポイント(pn)に移動いた時の位置を計算
-        /// </summary>
-        /// <param name="p"></param>
-        /// <param name="center"></param>
-        /// <param name="po"></param>
-        /// <param name="pn"></param>
-        /// <returns></returns>
-        static Vector2 CalcRotatePosition2(Vector2 p, Vector2 center, Vector2 po, Vector2 pc)
-        {
-            float radApOriginal = MathF.Atan2(po.Y - center.Y, po.X - center.X); //アンカーポイントの角度
-            float radCpOriginal = MathF.Atan2(p.Y - po.Y, p.X - po.X);// コントロールポイントの角度
-            float radApCurrent = MathF.Atan2(pc.Y - center.Y, pc.X - center.X);
-            float rad = radCpOriginal + (radApCurrent - radApOriginal);
-            float l = MathF.Sqrt(MathF.Pow(p.X - po.X, 2) + MathF.Pow(p.Y - po.Y, 2));
-            p.X = l * MathF.Cos(rad)+pc.X;
-            p.Y = l * MathF.Sin(rad)+pc.Y;
-
-            return p;
-        }
-
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="p"></param>
-        internal void SetPoint(Vector2 p)
-        {
-            switch (Command)
-            {
-                case 'M':
-                case 'm':
-                    points[0] = p;
-                    break;
-
-            }
-        }
-
-
-        internal bool IsM()
-        {
-            return Command == 'm' || Command == 'M';
-        }
-        internal bool IsZ()
-        {
-            return Command == 'z' || Command == 'Z';
-        }
-        internal bool IsC()
-        {
-            return Command == 'c' || Command == 'C';
-        }
-        internal bool IsL()
-        {
-            return Command == 'l' || Command == 'L' || Command == 'h' || Command == 'H' || Command == 'v' || Command == 'V';
-        }
-
-        internal void DrawPart(CanvasDrawingSession win2d, ViewInfo info)
-        {
-            switch (Command)
-            {
-                case 'c':
-                case 'C':
-                    {
-                        if (befor != null)
-                        {
-                            var bp = befor.GetPoint();
-                            bp.X *= info.Scale;
-                            bp.Y *= info.Scale;
-
-
-                            var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(win2d);
-
-                            int index = 0;
-                            index++;
-                            canvasPathBuilder.BeginFigure(bp);
-                            var p0 = points[0];
-                            var p1 = points[1];
-                            var p2 = points[2];
-                            p0.X *= info.Scale;
-                            p0.Y *= info.Scale;
-                            p1.X *= info.Scale;
-                            p1.Y *= info.Scale;
-                            p2.X *= info.Scale;
-                            p2.Y *= info.Scale;
-                            canvasPathBuilder.AddCubicBezier(p0, p1, p2);
-
-                            canvasPathBuilder.EndFigure(CanvasFigureLoop.Open);
-
-                            win2d.DrawGeometry(CanvasGeometry.CreatePath(canvasPathBuilder), Colors.HotPink, 1);
-
-                        }
-                    }
-                    break;
-                case 'l':
-                case 'L':
-                case 'h':
-                case 'H':
-                case 'v':
-                case 'V':
-                    {
-                        if (befor != null)
-                        {
-                            var bp = befor.GetPoint();
-                            bp.X *= info.Scale;
-                            bp.Y *= info.Scale;
-
-
-                            var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(win2d);
-
-                            int index = 0;
-                            index++;
-                            canvasPathBuilder.BeginFigure(bp);
-                            var p0 = points[0];
-                            p0.X *= info.Scale;
-                            p0.Y *= info.Scale;
-
-                            canvasPathBuilder.AddLine(p0);
-
-                            canvasPathBuilder.EndFigure(CanvasFigureLoop.Open);
-
-                            win2d.DrawGeometry(CanvasGeometry.CreatePath(canvasPathBuilder), Colors.HotPink, 1);
-
-                        }
-                    }
-                    break;
-
-            }
-        }
-
-        internal void SetBefor(SvgPathItem cp)
-        {
-            befor = cp;
-            beforPoint = befor.GetPoint();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="pn"></param>
-        /// <returns></returns>
-        internal SvgPathItem CreateRoundCorner(Vector2 pn)
-        {
-            var pc = GetPoint();
-            var pb = befor.GetPoint();
-
-            var a1 = MathF.Atan2(pc.Y - pb.Y, pc.X - pb.X);//傾き
-            var a2 = MathF.Atan2(pn.Y - pc.Y, pn.X - pc.X);//次の線の傾き
-            var a = (a1 + a2) / 2;
-            a = MathF.Abs(a);
-            if (a > MathF.PI)
-            {
-                a -= MathF.PI;
-            }
-
-            float r = 2;
-            float v = 0;
-
-
-            v = r / MathF.Tan(a); // 半径r円の接点の頂点からの距離
-            float l1 = CmUtils.Length(pb, pc); // 自分の線の長さ
-            float l2 = CmUtils.Length(pc, pn); // 次の線の長さ
-            if (l1 < v || l2 < v) return null;
-
-
-            var citem = new SvgPathItem('C', this);
-
-            var x = MathF.Cos(a1) * v;
-            var y = MathF.Sin(a1) * v;
-            var p1 = new Vector2(pc.X - x, pc.Y - y);
-            x = MathF.Cos(a2) * v;
-            y = MathF.Sin(a2) * v;
-            var p2 = new Vector2(pc.X + x, pc.Y + y);
-
-
-            var c = r * 0.5522847f; // 半径rの円弧に近似するためのコントロールポイントの長さ
-
-            x = MathF.Cos(a1) * c;
-            y = MathF.Sin(a1) * c;
-            var c1 = new Vector2(p1.X + x, p1.Y + y);
-            x = MathF.Cos(a2) * c;
-            y = MathF.Sin(a2) * c;
-            var c2 = new Vector2(p2.X - x, p2.Y - y);
-
-            var points = new List<Vector2>();
-            points.Add(c1);
-            points.Add(c2);
-            points.Add(p2);
-            citem.SetPoints(points);
-
-            this.points[0] = p1;
-
-            CmUtils.DebugWriteLine(string.Format("a1:{0:0.00},a2:{1:0.00},vl:{2:0.00},cl:{3:0.00}", CmUtils.ToAngle(a1), CmUtils.ToAngle(a2), v, c));
-
-            return citem;
-        }
-
-        private void SetPoints(List<Vector2> points)
-        {
-            this.points = points;
-        }
-
-        internal void AdjustSymmetric(SvgPathItem item)
-        {
-            if (!IsC() || !item.IsC()) return;
-            var c = item.GetControlPoint(true);
-            var p = item.GetPoint();
-
-            c.X = p.X + (p.X - c.X);
-            c.Y = p.Y + (p.Y - c.Y);
-            points[0] = c;
-        }
-
-        internal bool RoundCorner(SvgPathItem previous, SvgPathItem next, float step)
-        {
-
-            return false;
-        }
-    }
 }

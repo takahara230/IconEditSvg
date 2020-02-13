@@ -73,5 +73,13 @@ namespace IconEditSvg
         {
             return radian * 180 / MathF.PI;
         }
+
+        internal static Vector2 Coordinate(Vector2 p,float l, float rad)
+        {
+            float x = MathF.Cos(rad) * l;
+            float y = MathF.Sin(rad) * l;
+            return new Vector2(p.X+x, p.Y+y);
+
+        }
     }
 }
