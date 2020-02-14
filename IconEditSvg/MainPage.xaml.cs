@@ -305,14 +305,15 @@ namespace IconEditSvg
         ViewInfo m_viewInfo;
         public ViewInfo Info { get { return m_viewInfo; } }
         XmlDocument m_svgXmlDoc;
+        private const string Unit4Text = "反復単位(4)";
 
         public MainPage()
         {
             PolygonUnitDictionary.Add(PolygonUnit.none, "非多角形");
-            PolygonUnitDictionary.Add(PolygonUnit.unit1, "反復数(1)");
-            PolygonUnitDictionary.Add(PolygonUnit.unit2, "反復数(2)");
-            PolygonUnitDictionary.Add(PolygonUnit.unit3, "反復数(3)");
-            PolygonUnitDictionary.Add(PolygonUnit.unit4, "反復数(4)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit1, "反復単位(1)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit2, "反復単位(2)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit3, "反復単位(3)");
+            PolygonUnitDictionary.Add(PolygonUnit.unit4, Unit4Text);
 
             DataContext = this;
             this.InitializeComponent();
@@ -1116,6 +1117,30 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }));
         }
 
+        private async void OpenButton_Click(object sender, RoutedEventArgs e)
+        {
+            var filePicker = new Windows.Storage.Pickers.FileOpenPicker();
+            filePicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.Thumbnail;
+            filePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+            filePicker.FileTypeFilter.Add(".png");
+            var file = await filePicker.PickSingleFileAsync();
+            if (file != null)
+            {
+                // Application now has read/write access to all contents in the picked folder
+                // (including other sub-folder contents)
+                try
+                {
+                    SelectPngFile(file.Path);
+                }
+                catch (Exception ex)
+                {
+
+                    CmUtils.DebugWriteLine(ex.ToString());
+                }
+
+            }
+        }
+
 
         private async void Button_Click(object sender, RoutedEventArgs e)
         {
@@ -1130,23 +1155,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 // (including other sub-folder contents)
                 try
                 {
-                    var folder = await file.GetParentAsync();
-                    if (folder != null)
-                    {
-                        Windows.Storage.AccessCache.StorageApplicationPermissions.
-                        FutureAccessList.AddOrReplace("PickedFolderToken", folder);
-                        TargetFolder.Text = "Picked folder: " + folder.Path;
-
-                        ApplicationDataContainer container = ApplicationData.Current.LocalSettings;
-                        container.Values["Folder"] = folder.Path;
-
-                        _ = ViewModel.UpdateAsync(folder);
-                    }
+                    var path = file.Path;
+                    path = System.IO.Path.GetDirectoryName(path);
+                    var folder = await StorageFolder.GetFolderFromPathAsync(path);
+                    Windows.Storage.AccessCache.StorageApplicationPermissions.
+                    FutureAccessList.AddOrReplace("PickedFolderToken", folder);
+                    SelectPngFile(file.Path);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
 
-                    throw;
+                    CmUtils.DebugWriteLine(ex.ToString());
                 }
 
             }
@@ -1908,10 +1927,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             var o = IconListView.SelectedItem as PngFileItem;
             if (o != null)
             {
+                SelectPngFile(o.FullPath);
+            }
+        }
+
+        private void SelectPngFile(string path)
+        { 
                 UpdateEtc(true);
                 Task.Run(async () =>
                 {
-                    string path = o.FullPath;
                     string folder = System.IO.Path.GetDirectoryName(path);
                     m_viewInfo.FolderPath = folder;
                     string name0 = Path.GetFileName(path);
@@ -1945,12 +1969,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         else
                         {
                             //svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
-                            svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80px"" height = ""80px"" ></svg>";
+                            svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80"" height = ""80"" ></svg>";
 
                         }
                     }
-                    catch (Exception)
+                    catch (Exception e)
                     {
+                        CmUtils.DebugWriteLine(e.ToString());
                     }
 
 
@@ -2037,7 +2062,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     }));
                 });
 
-            }
+            
 
         }
 
@@ -2193,6 +2218,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         {
 
         }
+
     }
 
 
