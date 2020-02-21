@@ -119,11 +119,15 @@ namespace IconEditSvg
 
         }
 
-        public Vector2 GetPoint()
+        public Vector2 GetPoint(bool origin = true,int partIndex=0)
         {
-            if (points.Count != 0)
+
+            if (origin) {
+                partIndex = points.Count - 1;
+            }
+            if (partIndex>=0 && points.Count > partIndex)
             {
-                return points[points.Count - 1];
+                return points[partIndex];
             }
             return new Vector2(0, 0);
         }
@@ -398,7 +402,7 @@ namespace IconEditSvg
                                 double r = l / 0.5522847;
 
                                 float a = CmUtils.ToAngle(MathF.Atan2(c.Y, c.X));
-                                if(simple)
+                                if (simple)
                                     label = string.Format(" c1 {0:0.00} {1:0.00} r:{2:0.00} (長さ:{3:0.00}角度:{4:0.00})", c.X, c.Y, r, l, a);
                                 else
                                     label = string.Format("座標 {0} {1:0.00} {2:0.00} c1 {3:0.00} {4:0.00} r:{5:0.00} (長さ:{6:0.00}角度:{7:0.00})", Command, p.X, p.Y, c.X, c.Y, r, l, a);
@@ -457,7 +461,7 @@ namespace IconEditSvg
                                 points[1] = pc;
 
                                 var next = FindNext();
-                                if (next!=null && next.IsM() && next.GetPoint()==po) {
+                                if (next != null && next.IsM() && next.GetPoint() == po) {
                                     next.SetPoint(p);
                                 }
                             }
@@ -520,7 +524,7 @@ namespace IconEditSvg
                                 }
                                 if (nexti.IsC())
                                 {
-                                    nexti.ControlRotate(0,center, ps, p);
+                                    nexti.ControlRotate(0, center, ps, p);
                                 }
                             }
                         }
@@ -644,7 +648,7 @@ namespace IconEditSvg
         /// <param name="partIndex"></param>
         /// <param name="center"></param>
         /// <param name="da"></param>
-        internal void ApplyOtherValue2(SvgPathItem item0,int partIndex, Vector2 center,float da)
+        internal void ApplyOtherValue2(SvgPathItem item0, int partIndex, Vector2 center, float da)
         {
             switch (Command)
             {
@@ -653,7 +657,7 @@ namespace IconEditSvg
                     {
                         if (item0.IsC())
                         {
-                            if (partIndex == 2 || partIndex==1)
+                            if (partIndex == 2 || partIndex == 1)
                             {
                                 Vector2 p = item0.GetPoint();
                                 Vector2 ps = GetPoint();
@@ -729,6 +733,20 @@ namespace IconEditSvg
                     points[ix] = p;
                 }
             }
+        }
+
+        internal bool MovePos(int partIndex, Vector2 pos)
+        {
+            var p0 = points[partIndex];
+            var x = MathF.Round(pos.X);
+            var y = MathF.Round(pos.Y);
+            x = x - p0.X;
+            y = y - p0.Y;
+            if (x == 0 && y == 0) return false;
+
+            MoveAll(x, y);
+
+            return true;
         }
 
         internal void ResizePath(float ratio, Vector2 center)
@@ -875,7 +893,14 @@ namespace IconEditSvg
                 case 'L':
                 case 'M':
                 case 'm':
-                    points[0] = p;
+                    if (points.Count == 0)
+                    {
+                        points.Add(p);
+                    }
+                    else
+                    {
+                        points[0] = p;
+                    }
                     break;
 
             }
@@ -1256,14 +1281,13 @@ namespace IconEditSvg
         }
 
 
-        internal bool PointChange(int unit, int partIndex, float dx, float dy, float da, float dr)
+        internal bool PointChange(MainPage.PolygonUnit polygonUnit, int partIndex, float dx, float dy, float da, float dr,Vector2 center)
         {
-
+            int unit = (int)polygonUnit;
             bool rot = true;
             if (dx != 0 || dy != 0)
                 rot = false;
 
-            Vector2 center=new Vector2(0,0);
             if (rot)
             {
                 if (IsC() && partIndex != 2)
@@ -1273,25 +1297,18 @@ namespace IconEditSvg
                     else
                         center = befor.GetPoint(); // C の場合最低前にMが存在。
                 }
-                else
-                {
-                    var v = CalcCenter();
-                    if (v == null) return false;
-                    center = v.Value;
-                }
                 ValueRotate(partIndex, center, da, dr);
             }
             else
             {
-                if (unit > 0) {
-                    var v = CalcCenter();
-                    if (v == null) return false;
-                    center = v.Value;
-                }
                 // 移動
                 ValueChange(partIndex, dx, dy);
             }
-            if (unit > 0)
+            if (polygonUnit == MainPage.PolygonUnit.Symmetry)
+            {
+                // 線対称
+            }
+            else if (unit > 0 && polygonUnit!= MainPage.PolygonUnit.RulerOrigin)
             {
                 if (IsC() && partIndex != 2) {
                     var v = CalcCenter();

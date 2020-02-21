@@ -385,7 +385,7 @@ namespace IconEditSvg
                 this._timer = new DispatcherTimer();
 
                 // タイマーイベントの間隔を指定。
-                // ここでは1秒おきに実行する
+                // ここでは.1秒おきに実行する
                 this._timer.Interval = TimeSpan.FromMilliseconds(100);
                 this._timer.Tick += _timer_Tick;
                 _timer.Start();

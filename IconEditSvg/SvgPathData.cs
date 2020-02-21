@@ -6,6 +6,8 @@ using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Geometry;
+using Windows.Foundation;
 using Windows.UI;
 using static IconEditSvg.MainPage;
 
@@ -160,15 +162,10 @@ namespace IconEditSvg
 
         List<List<SvgPathItem>> Paths;
 
-        public SvgPathData()
-        {
-
-        }
-
         public SvgPathData(SvgEditData item, PolygonUnit polygonUnitValue)
         {
             CurrentIndex = new SvgPathIndex();
-            var m_path = item.GetPathData();
+            var m_path = item?.GetPathData();
             Paths = new List<List<SvgPathItem>>();
             List<SvgPathItem> path = null;
             if (m_path != null)
@@ -194,14 +191,34 @@ namespace IconEditSvg
                     }
                     befor = p;
                 }
-                UpdatePolygonVlues(polygonUnitValue);
             }
         }
 
-        internal void UpdatePolygonVlues(MainPage.PolygonUnit polygonUnitValue)
+        bool RulerEnabled;
+        bool RulerVisible;
+
+        internal void RulerShow(Vector2 startPoint, Vector2 endPoint)
         {
-            // データパース時に中心位置をあらかじめ計算していたが、今はその都度。
+            if (!RulerEnabled)
+            {
+                List<SvgPathItem> path = new List<SvgPathItem>();
+                SvgPathItem p1 = new SvgPathItem('M', null);
+                p1.SetPoint(startPoint);
+                SvgPathItem p2 = new SvgPathItem('L', p1);
+                p2.SetPoint(endPoint);
+                p1.Next = p2;
+                path.Add(p1);
+                path.Add(p2);
+                Paths.Add(path);
+            }
+            RulerEnabled = true;
+            RulerVisible = true;
         }
+        internal void RulerHide()
+        {
+            RulerVisible = false;
+        }
+
 
         /// <summary>
         /// 
@@ -339,81 +356,6 @@ namespace IconEditSvg
         }
 
 
-        internal bool PolygonChange(float r, float a, int unit, ViewInfo info)
-        {
-            if (!CurrentIndex.IsValid())
-                return false;
-            var m_path = Paths[CurrentIndex.BlockIndex];
-            if (!IsConsistentAsPolygonData(unit, m_path))
-                return false;
-            var count = m_path.Count - 1;
-            bool lastSame = false;
-            if (IsSameLast(m_path))
-            {
-                lastSame = true;
-                count--;
-            }
-            var index = CurrentIndex.ItemIndex;
-            var partIndex = CurrentIndex.PartIndex;
-            if (index >= 0)
-            {
-                var center = CalcCenter(m_path);
-                var item0 = m_path[index];
-                item0.PolygonChange(info, r, a, center);
-                if (item0.IsC())
-                {
-                    // ベジェ曲線の場合隣のコントロールポイントを
-                    int ni = GetNextIndex(m_path, index); // 隣のCのインデックスを返す。(
-                    var item2 = m_path[ni];
-                    item2.AdjustSymmetric(item0);
-                }
-                if (lastSame && index == count) {
-                    var p = item0.GetPoint();
-                    var item = m_path[0];
-                    item.SetPoint(p);
-                }
-
-
-                int unitcount = count / unit;
-                for (int ix = 1; ix < unitcount; ix++)
-                {
-                    index += unit;
-                    if (lastSame)
-                    {
-                        if (index > count)
-                        {
-                            index = index - count;
-                        }
-                    }
-                    else
-                    {
-                        if (index >= count)
-                        {
-                            index = index - count;
-                        }
-                    }
-                    var item = m_path[index];
-                    item.ApplyOtherValue(item0, (360.0f / count * unit) * ix, center);
-                    if (item.IsC()) {
-                        int ni = GetNextIndex(m_path,index); // 隣のCのインデックスを返す。(
-                        var item2 = m_path[ni];
-                        item2.AdjustSymmetric(item);
-                    }
-                    if (lastSame && index == count)
-                    {
-                        // M の位置を変更
-                        var p = item.GetPoint();
-                        item = m_path[0];
-                        item.SetPoint(p);
-                    }
-                }
-
-                return true;
-            }
-            return false;
-
-        }
-
         internal bool PointChange(KeyCommand keyCmd, PolygonUnit polygonUnitValue, ViewInfo info)
         {
             var item = GetItem(CurrentIndex);
@@ -421,9 +363,14 @@ namespace IconEditSvg
 
             int unit = (int)polygonUnitValue;
             var m_path = Paths[CurrentIndex.BlockIndex];
-            if (unit > 0) { 
-                if (!IsConsistentAsPolygonData(unit, m_path))
-                    return false;
+            switch (polygonUnitValue) {
+                case PolygonUnit.unit1:
+                case PolygonUnit.unit2:
+                case PolygonUnit.unit3:
+                case PolygonUnit.unit4:
+                    if (!IsConsistentAsPolygonData(unit, m_path))
+                        return false;
+                    break;
             }
             switch (keyCmd) {
                 case KeyCommand.Home:
@@ -478,7 +425,20 @@ namespace IconEditSvg
                     dx = 0.1f;
                     break;
             }
-            res = item.PointChange(unit, CurrentIndex.PartIndex, dx, dy, da, dr);
+            Vector2 center = new Vector2(0, 0);
+            if (polygonUnitValue == PolygonUnit.RulerOrigin)
+            {
+                if (RulerVisible)
+                {
+                    var ruler = Paths[Paths.Count - 1];
+                    center = ruler[0].GetPoint();
+                }
+            }
+            else if (polygonUnitValue != PolygonUnit.none)
+            {
+                center = CalcCenter(m_path);
+            }
+            res = item.PointChange(polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr,center);
 
 
             return res;
@@ -619,6 +579,14 @@ namespace IconEditSvg
             }
             return true;
         }
+
+        internal bool MovePos(SvgPathIndex pressIndex, Vector2 pos)
+        {
+            var item = Paths[pressIndex.BlockIndex][pressIndex.ItemIndex];
+            return item.MovePos(pressIndex.PartIndex, pos);
+        }
+
+
         internal bool ResizePath(float ratio)
         {
             if (Paths == null || Paths.Count == 0) return false;
@@ -742,7 +710,55 @@ namespace IconEditSvg
             if (CurrentIndex.IsValid())
             {
                 var m_path = Paths[CurrentIndex.BlockIndex];
-                if (polygonUnitValue != MainPage.PolygonUnit.none)
+                if (polygonUnitValue == PolygonUnit.Symmetry)
+                {
+                    var item = m_path[CurrentIndex.ItemIndex];
+                    var p = item.GetPoint(false,CurrentIndex.PartIndex);
+
+                    Vector2 start = new Vector2();
+                    Vector2 end = new Vector2();
+                    CalcReferenceLine(ref start, ref end);
+
+                    var v1 = end - start;
+                    var a1 = MathF.Atan2(v1.Y, v1.X);
+                    var v2 = p-start;
+                    var a2 = MathF.Atan2(v2.Y, v2.X);
+                    var l = MathF.Abs(MathF.Sin(a2-a1)* MathF.Sqrt(MathF.Pow(v2.X, 2) + MathF.Pow(v2.Y, 2)));
+                    var l2 = MathF.Cos(a2 - a1) * MathF.Sqrt(MathF.Pow(v2.X, 2) + MathF.Pow(v2.Y, 2));
+
+
+                    string text = string.Format("基準から：{1:0.0} 中心線から：{0:0.0} $$  ", l,l2);
+
+                    string info = item.GetInfo(CurrentIndex.PartIndex, true);
+                    return text + info;
+
+                }
+                else if (polygonUnitValue == PolygonUnit.RulerOrigin)
+                {
+                    if(RulerVisible){
+                        var ruler = Paths[Paths.Count - 1];
+                        var v = ruler[0].GetPoint();
+
+                        var item = m_path[CurrentIndex.ItemIndex];
+                        string info = item.GetInfo(CurrentIndex.PartIndex, true);
+
+
+                        string text = string.Format("原点：{0:0.0} {1:0.0}", v.X, v.Y);
+
+                        var p = item.GetPoint();
+                                                var ofy = p.Y - v.Y;
+                        var ofx = p.X - v.X;
+                        float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
+
+                        var a = MathF.Atan2(ofy, ofx);
+
+                        text += string.Format(" 半径 {0:0.00} 角度 {1:0.00}", r, ToAngle(a));
+
+
+                        return text +info;
+                    }
+                }
+                else if (polygonUnitValue != MainPage.PolygonUnit.none)
                 {
                     int unit = (int)polygonUnitValue;
                     var count = m_path.Count - 1;
@@ -776,7 +792,6 @@ namespace IconEditSvg
                         return text;
                     }
                 }
-                else
                 {
                     var index = CurrentIndex.ItemIndex;//
                     var partIndex = CurrentIndex.PartIndex; // 
@@ -788,6 +803,7 @@ namespace IconEditSvg
                         return info;
                     }
                 }
+
             }
             return "選択されていません";
         }
@@ -802,9 +818,14 @@ namespace IconEditSvg
 
         internal List<SvgPathItem> GetPathList()
         {
+
             var pathlist = new List<SvgPathItem>();
-            foreach (var list in Paths)
+            for(int ix=0;ix<Paths.Count;ix++)
             {
+                if (RulerEnabled && ix == Paths.Count-1) {
+                    break;
+                }
+                var list = Paths[ix];
                 foreach (var item in list)
                 {
                     pathlist.Add(item);
@@ -812,6 +833,18 @@ namespace IconEditSvg
             }
             return pathlist;
         }
+
+        internal void GetRulerPos(ref Vector2 rulerStartPoint, ref Vector2 rulerEndPoint)
+        {
+            if (Paths.Count == 0 || !RulerEnabled) return;
+
+            var list = Paths[Paths.Count - 1];
+            if (list == null || list.Count < 2) return;
+
+            rulerStartPoint = list[0].GetPoint();
+            rulerEndPoint = list[1].GetPoint();
+        }
+
 
         internal void SelectHandle(SvgPathIndex pressIndex)
         {
@@ -844,27 +877,129 @@ namespace IconEditSvg
             return CurrentIndex;
         }
 
+        void CalcReferenceLine(ref Vector2 start, ref Vector2 end)
+        {
+            bool notset = true;
+            var bc = Paths.Count;
+            if (RulerVisible)
+            {
+                bc--;
+            }
+            Vector2 pn = new Vector2();
+            for (int bx = 0; bx < bc; bx++)
+            {
+
+                var path = Paths[bx];
+                int pc = path.Count;
+                if (path.Count < 2) continue;
+                var i1 = path[0];
+                var i2 = path[path.Count - 1];
+                if (i2.IsZ())
+                {
+                    if (path.Count < 3) return;
+                    i2 = path[path.Count - 2];
+                    pc--;
+                }
+                var p1 = i1.GetPoint();
+                var p2 = i2.GetPoint();
+                pn = (p1 + p2) / 2;
+                if (notset)
+                {
+                    notset = false;
+                    start = pn;
+                    end = pn;
+                }
+                else
+                {
+                    if (pn.X < start.X || (pn.X == start.X && pn.Y < start.Y))
+                    {
+                        start = pn;
+                    }
+                    else if (pn.X > end.X || (pn.X == end.X && pn.Y > end.Y))
+                    {
+                        end = pn;
+                    }
+                }
+                if (pc >= 3)
+                {
+
+                    if (pc % 2 != 0)
+                    {
+                        int t = pc / 2;
+                        var i3 = path[t];
+                        pn = i3.GetPoint();
+                    }
+                    else
+                    {
+                        int t = pc / 2;
+                        var i3 = path[t];
+                        var i4 = path[t - 1];
+                        var p3 = i3.GetPoint();
+                        var p4 = i4.GetPoint();
+                        pn = (p4 + p3) / 2;
+
+                    }
+                    if (pn.X < start.X || (pn.X == start.X && pn.Y < start.Y))
+                    {
+                        start = pn;
+                    }
+                    else if (pn.X > end.X || (pn.X == end.X && pn.Y > end.Y))
+                    {
+                        end = pn;
+                    }
+
+                }
+
+            }
+        }
+
         internal void DrawPolygonCenter(ViewInfo info, CanvasDrawingSession win2d, PolygonUnit polygonUnitValue)
         {
-            for (int bx = 0; bx < Paths.Count; bx++)
+            if (polygonUnitValue == PolygonUnit.RulerOrigin) { }
+            else if (polygonUnitValue == PolygonUnit.Symmetry)
             {
-                var path = Paths[bx];
-                if (!IsConsistentAsPolygonData((int)polygonUnitValue, path))
-                    continue;
+                Vector2 start = new Vector2();
+                Vector2 end = new Vector2();
+                CalcReferenceLine(ref start, ref end);
 
-                var center = CalcCenter(path);
+                start *= info.Scale;
+                end *= info.Scale;
+                var style = new CanvasStrokeStyle();
+                win2d.DrawLine(start, end, Colors.DodgerBlue,2,style);
+            }
+            else
+            {
+                var count = Paths.Count;
+                if (RulerVisible) {
+                    count--; // 念のため　表示されてもあまり問題ないけど
+                }
+                for (int bx = 0; bx < count; bx++)
+                {
+                    var path = Paths[bx];
+                    if (!IsConsistentAsPolygonData((int)polygonUnitValue, path))
+                        continue;
 
-                float xc = center.X * info.Scale;
-                float yc = center.Y * info.Scale;
-                win2d.FillEllipse(xc, yc, 4, 4, Colors.DodgerBlue);
+                    var center = CalcCenter(path);
+
+                    float xc = center.X * info.Scale;
+                    float yc = center.Y * info.Scale;
+                    win2d.FillEllipse(xc, yc, 4, 4, Colors.DodgerBlue);
+                }
             }
         }
 
         internal void DrawCurrentSelectPath(CanvasDrawingSession win2d, ViewInfo info)
         {
+            if (RulerVisible) {
+                var item = Paths[Paths.Count-1][1];
+                item.DrawPart(win2d, info);
+            }
+
             if (!CurrentIndex.IsValid()) return;
-            var item = Paths[CurrentIndex.BlockIndex][CurrentIndex.ItemIndex];
-            item.DrawPart(win2d, info);
+            {
+                var item = Paths[CurrentIndex.BlockIndex][CurrentIndex.ItemIndex];
+                item.DrawPart(win2d, info);
+            }
         }
 
         internal static void SetPreviusPoint(List<SvgPathItem> path, int index, Vector2 p1)
