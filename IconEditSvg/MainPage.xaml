@@ -76,14 +76,9 @@
                                 <SymbolIcon Symbol="Accept"/>
                             </AppBarButton.Icon>
                         </AppBarButton>
-                        <AppBarButton Label="ZoomOut" Click="AppBarZoomOutButton_Click">
+                        <AppBarButton Label="Switch" Click="RefreshButton_Click">
                             <AppBarButton.Icon>
-                                <SymbolIcon Symbol="ZoomOut"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarButton Label="ZoomIn" Click="AppBarZoomInButton_Click">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="ZoomIn"/>
+                                <SymbolIcon Symbol="Switch"/>
                             </AppBarButton.Icon>
                         </AppBarButton>
                         <AppBarSeparator/>
@@ -98,11 +93,12 @@
                                 <SymbolIcon Symbol="Edit"/>
                             </AppBarToggleButton.Icon>
                         </AppBarToggleButton>
-                        <AppBarToggleButton Label="Ruler" IsChecked="{x:Bind RulerVisible,Mode=TwoWay}">
-                            <AppBarToggleButton.Icon>
-                                <SymbolIcon Symbol="Pin"/>
-                            </AppBarToggleButton.Icon>
-                        </AppBarToggleButton>
+                        <AppBarSeparator/>
+                        <ComboBox x:Name="MoveUnitComboBox" ItemsSource="{Binding MoveUnitDictionary}"
+                DisplayMemberPath="Value"
+                SelectedValue="{Binding MoveUnit, Mode=TwoWay}"
+                SelectedValuePath="Key" VerticalAlignment="Center" Width="180"
+        />
                         <AppBarSeparator/>
                         <ComboBox x:Name="PolygonUnitComboBox" ItemsSource="{Binding PolygonUnitDictionary}"
                 DisplayMemberPath="Value"
@@ -117,8 +113,10 @@
                     <Border BorderBrush="Silver" BorderThickness="1" Grid.Row="2">
                         <ScrollViewer x:Name="Edit_ScrollViewer" IsTabStop="True" KeyDown="EditCanvas_KeyDown" Background="#ff0f0f0f" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <Grid x:Name="EditBase_Grid">
-                            <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
-                            <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>
+                                <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
+                                <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>
+                                <canvas:CanvasControl Name="PrevCanvas" Draw="PrevCanvas_Draw" Opacity=".5"/>
+                            
                             <canvas:CanvasControl Draw="MainCanvas_Draw" Name="MainCanvas" PointerMoved="MainCanvas_PointerMoved" PointerPressed="MainCanvas_PointerPressed" PointerReleased="MainCanvas_PointerReleased"/>
                             <canvas:CanvasControl Name="EditCanvas" Draw="EditCanvas_Draw" Visibility="Collapsed"
                                                   PointerPressed="EditCanvas_PointerPressed" PointerMoved="EditCanvas_PointerMoved" PointerReleased="EditCanvas_PointerReleased" 

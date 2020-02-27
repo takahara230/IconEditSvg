@@ -79,8 +79,8 @@ namespace IconEditSvg
 
     public class ViewInfo
     {
-        public float Width;
-        public float Height;
+        public int Width;
+        public int Height;
         public float Scale;
         public float OffsetX;
         public float OffsetY;
@@ -94,6 +94,7 @@ namespace IconEditSvg
 
             HoverIndex = new SvgPathData.SvgPathIndex();
             PressIndex = null;
+            MoveUnit = MainPage.MoveUnitDef.few;
 
         }
 
@@ -102,6 +103,7 @@ namespace IconEditSvg
         public SvgEditData TargetItem { get; internal set; }
         public SvgPathData.SvgPathIndex HoverIndex { get; internal set; }
         public SvgPathData.SvgPathIndex PressIndex { get; internal set; }
+        public MainPage.MoveUnitDef MoveUnit { get; internal set; }
     };
 
     public class Item
@@ -175,6 +177,24 @@ namespace IconEditSvg
             }
         }
 #endif
+        public enum MoveUnitDef
+        {
+            few,
+            normal,
+            rough,
+
+        }
+
+        public Dictionary<MoveUnitDef, string> MoveUnitDictionary { get; } = new Dictionary<MoveUnitDef, string>();
+        public MoveUnitDef MoveUnit {
+            get { return m_viewInfo.MoveUnit; }
+            set {
+                m_viewInfo.MoveUnit = value;
+            }
+        }
+
+
+
         public enum PolygonUnit
         {
             none = 0,
@@ -184,9 +204,6 @@ namespace IconEditSvg
             unit4,
             RulerOrigin,
             Symmetry,
-
-
-
         }
         public Dictionary<PolygonUnit, string> PolygonUnitDictionary { get; }
      = new Dictionary<PolygonUnit, string>();
@@ -199,16 +216,59 @@ namespace IconEditSvg
             set
             {
                 SetProperty(ref _polygonUnitValue, value);
-                MainCanvas.Invalidate();
+                if (_polygonUnitValue == PolygonUnit.Symmetry)
+                {
+                    if (m_viewInfo.TargetPathData != null)
+                    {
+                        _ = MessageYesNoAsync("中心線を選択された要素で再計算しますか？", (bool res) =>
+                        {
+                            InitializeRulerValue(false);
+
+                            if (res)
+                            {
+                                m_viewInfo.TargetPathData.CalcReferenceLine(ref RulerStartPoint, ref RulerEndPoint);
+                            }
+                            m_viewInfo.TargetPathData.RulerShow(RulerStartPoint, RulerEndPoint);
+                            MainCanvas.Invalidate();
+                        });
+                    }
+                    else
+                    {
+                        InitializeRulerValue(false);
+                        m_viewInfo.TargetPathData = new SvgPathData(null, PolygonUnit.none);
+                        m_viewInfo.TargetPathData.RulerShow(RulerStartPoint, RulerEndPoint);
+                        MainCanvas.Invalidate();
+                    }
+                }
+                else
+                {
+                    if (m_viewInfo.TargetPathData != null)
+                    {
+                        m_viewInfo.TargetPathData.RulerHide();
+                    }
+
+                    MainCanvas.Invalidate();
+                }
             }
         }
 
         bool RulerInitialize;
 
+        void InitializeRulerValue(bool forcibly)
+        {
+            if (!RulerInitialize || forcibly)
+            {
+                RulerInitialize = true;
+                RulerStartPoint = new Vector2(m_viewInfo.Width * 1 / 4, m_viewInfo.Height * 1 / 4);
+                RulerEndPoint = new Vector2(m_viewInfo.Width * 3 / 4, m_viewInfo.Height * 3 / 4);
+            }
+        }
+
         Vector2 RulerStartPoint;
         Vector2 RulerEndPoint;
 
         bool _rulerVisible;
+#if false
         bool RulerVisible
         {
             get { return _rulerVisible; }
@@ -217,12 +277,7 @@ namespace IconEditSvg
                 _rulerVisible = value;
                 if (_rulerVisible)
                 {
-                    if (!RulerInitialize)
-                    {
-                        RulerInitialize = true;
-                        RulerStartPoint = new Vector2(m_viewInfo.Width * 1 / 4, m_viewInfo.Height * 1 / 4);
-                        RulerEndPoint = new Vector2(m_viewInfo.Width * 3 / 4, m_viewInfo.Height * 3 / 4);
-                    }
+                    InitializeRulerValue(false);
                     if (m_viewInfo.TargetPathData == null)
                     {
                         m_viewInfo.TargetPathData = new SvgPathData(null, PolygonUnit.none);
@@ -240,7 +295,7 @@ namespace IconEditSvg
                 }
             }
         }
-
+#endif
         private bool _drawMode = false;
         private bool DrawMode
         {
@@ -252,10 +307,6 @@ namespace IconEditSvg
                 OnPropertyChanged("DrawMode");
                 if (_drawMode)
                 {
-                    if (RulerVisible)
-                    {
-                        RulerVisible = false;
-                    }
                     //EditCanvas.Focus(FocusState.Keyboard);
                     //var x =  FocusManager.GetFocusedElement();
                     _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
@@ -269,7 +320,7 @@ namespace IconEditSvg
                     if (m_viewInfo.TargetPathData != null)
                     {
                         _rulerVisible = false;
-                        OnPropertyChanged("RulerVisible");
+                        //                        OnPropertyChanged("RulerVisible");
                         // まぁ選択状態解除みたいな。
                         m_viewInfo.TargetPathData.RulerHide();
                         m_viewInfo.TargetPathData = null;
@@ -291,6 +342,7 @@ namespace IconEditSvg
         string svgdata;
         byte[] folder40bytes;
         byte[] OrgImageBytes;
+        byte[] OrgImage2xBytes;
 
         double _opacityValue = 50;
 
@@ -311,6 +363,10 @@ namespace IconEditSvg
             PolygonUnitDictionary.Add(PolygonUnit.unit4, Unit4Text);
             PolygonUnitDictionary.Add(PolygonUnit.RulerOrigin, RulerOriginText);
             PolygonUnitDictionary.Add(PolygonUnit.Symmetry, SymmetryText);
+
+            MoveUnitDictionary.Add(MoveUnitDef.few, "移動単位小( 0.1 px )");
+            MoveUnitDictionary.Add(MoveUnitDef.normal, "移動単位中( 1 px )");
+            MoveUnitDictionary.Add(MoveUnitDef.rough, "移動単位大( 5 px )");
 
             DataContext = this;
             this.InitializeComponent();
@@ -363,7 +419,28 @@ namespace IconEditSvg
 
         private void CoreWindow_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
+            int modifier = GetKeyModifier();
+            if (modifier == KEYMODIFIER_CONTROL)
+            {
+                args.Handled = true;
+                var delta = args.CurrentPoint.Properties.MouseWheelDelta;
 
+                if (delta > 0)
+                {
+                    m_viewInfo.Scale -= 2;
+                    if (m_viewInfo.Scale < 6)
+                    {
+                        m_viewInfo.Scale = 6;
+                    }
+                    InvalidateAllCanvas();
+                }
+                else if (delta < 0)
+                {
+                    m_viewInfo.Scale += 2;
+                    InvalidateAllCanvas();
+                }
+
+            }
         }
 
         const int KEYMODIFIER_ALT = 1;
@@ -529,6 +606,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         private void MainPage_Loaded(object sender, RoutedEventArgs e)
         {
             PolygonUnitComboBox.SelectedIndex = 0;
+            MoveUnitComboBox.SelectedIndex = 0;
 
             Task.Run((Func<Task>)(async () =>
             {
@@ -584,7 +662,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         }
         /// <summary>
-        /// 変更に伴う初期化
+        /// ファイル変更または、テキスト直接編集による変更に伴う初期化
         /// </summary>
         /// <param name="pre"></param>
         void UpdateEtc(bool pre)
@@ -595,7 +673,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 if (m_viewInfo.TargetPathData != null)
                 {
                     _rulerVisible = false;
-                    OnPropertyChanged("RulerVisible");
+                    //                    OnPropertyChanged("RulerVisible");
                     m_viewInfo.TargetPathData.RulerHide();
                 }
                 m_viewInfo.TargetPathData = null;
@@ -745,6 +823,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             var color0 = Color.FromArgb(255, 191, 191, 191);
             var color1 = Color.FromArgb(255, 255, 255, 255);
             CalcViewPos();
+            Debug.WriteLine("offsetx {0:0.0f} scale:{1:0.0f}", m_viewInfo.OffsetX, m_viewInfo.Scale);
             float w = m_viewInfo.Width * m_viewInfo.Scale;
             float h = m_viewInfo.Height * m_viewInfo.Scale;
             int x = (int)m_viewInfo.OffsetX;
@@ -764,24 +843,40 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         /// <param name="args"></param>
         private void RefCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
-            if (false) //if (PngFile200 != null)
+            var x = m_viewInfo.OffsetX;
+            var y = m_viewInfo.OffsetY;
+            if (m_ref80 && PngFile200!=null && OrgImage2xBytes != null) //if (PngFile200 != null)
             {
-                float vw = m_viewInfo.Width * m_viewInfo.Scale;
-                float vh = m_viewInfo.Height * m_viewInfo.Scale;
-                int x = (int)((sender.ActualWidth - vw) / 2);
-                int y = (int)((sender.ActualHeight - vh) / 2);
-
+#if false
                 args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, x, y);
-
                 CanvasBitmap bitmap = CanvasBitmap.CreateFromBytes(sender, PngFile200.PixelBuffer.ToArray(), 80, 80, Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized);
                 args.DrawingSession.DrawImage(bitmap);
+#else
+                float w = m_viewInfo.Scale;
+
+                int cl = m_viewInfo.Height;
+                for (int row = 0; row < m_viewInfo.Width; row++)
+                {
+                    for (int col = 0; col < cl; col++)
+                    {
+                        int index = (row * cl + col) * 4;
+                        if (index >= OrgImage2xBytes.Length) break;
+
+                        byte r = OrgImage2xBytes[index + 2];
+                        byte g = OrgImage2xBytes[index + 1];
+                        byte b = OrgImage2xBytes[index + 0];
+                        byte a = OrgImage2xBytes[index + 3];
+                        //                        a = (byte)((float)a * _opacityValue / 100);
+                        Rect rect = new Rect(x + col * w, y + row * w, w, w);
+                        args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
+                    }
+                }
+
+#endif
+
             }
             else if (OrgImageBytes != null)
             {
-                float vw = m_viewInfo.Width * m_viewInfo.Scale;
-                float vh = m_viewInfo.Height * m_viewInfo.Scale;
-                int x = (int)((sender.ActualWidth - vw) / 2);
-                int y = (int)((sender.ActualHeight - vh) / 2);
 
                 float w = m_viewInfo.Scale * 2;
 
@@ -804,14 +899,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 }
             }
         }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="args"></param>
-        private void MainCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
+        private void PrevCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
         {
-            args.DrawingSession.DrawEllipse(155, 115, 80, 30, Colors.Black, 3);
+            args.DrawingSession.DrawEllipse(0, 0, 80, 30, Colors.Red, 3);
             args.DrawingSession.DrawText("Hello, world!", 100, 100, Colors.Yellow);
 
             var des = new CompositeEffect();
@@ -822,17 +912,18 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             des.Sources.Add(getImage2(sender));
 
             args.DrawingSession.DrawImage(des);
-
+            /*
             float w = m_viewInfo.Width * m_viewInfo.Scale;
             float h = m_viewInfo.Height * m_viewInfo.Scale;
             int x = (int)((sender.ActualWidth - w) / 2);
             int y = (int)((sender.ActualHeight - h) / 2);
             m_viewInfo.OffsetX = x;
             m_viewInfo.OffsetY = y;
+            */
             //
             if (svgdata != null)
             {
-                args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, x, y);
+                args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, m_viewInfo.OffsetX, m_viewInfo.OffsetY);
                 try
                 {
                     var doc = CanvasSvgDocument.LoadFromXml(sender, svgdata);
@@ -850,10 +941,19 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 {
                 }
             }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="args"></param>
+        private void MainCanvas_Draw(CanvasControl sender, Microsoft.Graphics.Canvas.UI.Xaml.CanvasDrawEventArgs args)
+        {
+            args.DrawingSession.DrawEllipse(0, 0, 83, 33, Colors.Aqua, 3);
             if (m_viewInfo.TargetPathData != null && m_viewInfo.TargetPathData.IsExists())
             {
                 // 選択されているパスとアンカーの表示
-                args.DrawingSession.Transform = new Matrix3x2(1, 0, 0, 1, x, y);
+                args.DrawingSession.Transform = new Matrix3x2(1, 0, 0, 1, m_viewInfo.OffsetX, m_viewInfo.OffsetY);
                 m_viewInfo.TargetPathData.DrawCurrentSelectPath(args.DrawingSession, m_viewInfo);
 
 
@@ -1096,7 +1196,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         void UpdateSvg(bool success)
         {
-            MainCanvas.Invalidate();
+            //MainCanvas.Invalidate();
+            PrevCanvas.Invalidate();
             _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
             {
                 WriteableBitmap i40 = null;
@@ -1259,7 +1360,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             // Children were just added to this node, so set HasUnrealizedChildren to false.
             node.HasUnrealizedChildren = false;
         }
-        #region イベント
+#region イベント
 
         private void MainCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -1329,10 +1430,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     pos.X -= m_viewInfo.OffsetX;
                     pos.Y -= m_viewInfo.OffsetY;
                     Vector2 v = new Vector2((float)pos.X / Info.Scale, (float)pos.Y / Info.Scale);
-                    if (Info.TargetPathData.MovePos(Info.PressIndex, v))
-                    {
-                        moved = true;
-                        AllRelatedDataUpdate();
+                    if (moved || CmUtils.Length(MousePressPoint, new Vector2((float)pos.X, (float)pos.Y)) > 5) {
+                        if (Info.TargetPathData.MovePos(Info.PressIndex, v))
+                        {
+                            moved = true;
+                            AllRelatedDataUpdate();
+                        }
                     }
                 }
             }
@@ -1341,6 +1444,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 findItem(e, MouseEventKind.Move);
             }
         }
+
+        Vector2 MousePressPoint;
 
 
         void findItem(PointerRoutedEventArgs e, MouseEventKind kind)
@@ -1392,6 +1497,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             {
                                 if (ptrPt.Properties.IsLeftButtonPressed)
                                 {
+                                    MousePressPoint = new Vector2((float)pos.X, (float)pos.Y);
                                     moved = false;
                                     Edit_ScrollViewer.Focus(FocusState.Programmatic);
                                     if (m_viewInfo.HoverIndex.IsValid())
@@ -1453,38 +1559,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 svgText.Text = svgdata;
                 updateTree();
                 UpdateSvg(true);
-                UpdateCordinateInfo();
             }
             else
             {
                 // 多分ルーラー
-                m_viewInfo.TargetPathData.GetRulerPos(ref RulerStartPoint,ref RulerEndPoint);
-                MainCanvas.Invalidate();
+                m_viewInfo.TargetPathData.GetRulerPos(ref RulerStartPoint, ref RulerEndPoint);
             }
+            MainCanvas.Invalidate();
+            UpdateCordinateInfo();
+
         }
 
-
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        void ValueChange(float x, float y)
-        {
-            if (Info.TargetPathData.ValueChange(x, y))
-            {
-
-                List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
-
-                m_viewInfo.TargetItem.UpdateElement(m_path);
-                svgdata = m_svgXmlDoc.GetXml();
-                svgText.Text = svgdata;
-                updateTree();
-                UpdateSvg(true);
-                UpdateCordinateInfo();
-            }
-        }
 
         void PointChange(KeyCommand keyCommand)
         {
@@ -1825,7 +1910,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         }
 
 
-        #endregion
+#endregion
         private void SampleTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
         {
             var node = args.InvokedItem as TreeViewNode;
@@ -1836,9 +1921,41 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 m_viewInfo.TargetItem = item;
                 m_viewInfo.TargetPathData = new SvgPathData(item, PolygonUnitValue);
                 DrawMode = false;
-                _rulerVisible = false;
-                OnPropertyChanged("RulerVisible");
-                MainCanvas.Invalidate();
+
+                if (PolygonUnitValue == PolygonUnit.Symmetry)
+                {
+
+                    _ = MessageYesNoAsync("中心線を選択された要素で再計算しますか？", (bool res) =>
+                    {
+                        InitializeRulerValue(false);
+
+                        if (res)
+                        {
+                            m_viewInfo.TargetPathData.CalcReferenceLine(ref RulerStartPoint, ref RulerEndPoint);
+                        }
+                        m_viewInfo.TargetPathData.RulerShow(RulerStartPoint, RulerEndPoint);
+                        MainCanvas.Invalidate();
+                    });
+                }
+                else
+                {
+                    _rulerVisible = false;
+                    //                    OnPropertyChanged("RulerVisible");
+                    MainCanvas.Invalidate();
+                }
+            }
+        }
+
+        async Task MessageYesNoAsync(string text, Action<bool> action)
+        {
+            var msg = new ContentDialog();
+            msg.Content = text;
+            msg.PrimaryButtonText = "はい";
+            msg.SecondaryButtonText = "いいえ";
+            var res = await msg.ShowAsync();
+            if (action != null)
+            {
+                action(res == ContentDialogResult.Primary);
             }
         }
 
@@ -1986,8 +2103,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     }
                     else
                     {
-                            //svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
-                            svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80"" height = ""80"" ></svg>";
+                        //svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
+                        svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80"" height = ""80"" ></svg>";
 
                     }
 
@@ -2031,8 +2148,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
                 {
                     var appView = Windows.UI.ViewManagement.ApplicationView.GetForCurrentView();
-                        //appView.Title = o.FullPath;
-                        appView.Title = m_viewInfo.FolderPath + " " + m_viewInfo.FileName;
+                    //appView.Title = o.FullPath;
+                    appView.Title = m_viewInfo.FolderPath + " " + m_viewInfo.FileName;
 
                     PngFile100 = null;
                     PngFile200 = null;
@@ -2054,6 +2171,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         using (var s = await file1.OpenReadAsync())
                         {
                             PngFile200.SetSource(s);
+                            OrgImage2xBytes = PngFile200.PixelBuffer.ToArray();
                         }
                     }
                     OrgImage100.Source = PngFile100;
@@ -2078,7 +2196,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                     RefCanvas.Invalidate(); // いらない多分、後で見る
 
-                        UpdateSvgByText();
+                    UpdateSvgByText();
 
 
                 }));
@@ -2095,12 +2213,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             OrgImage100.Opacity = _opacityValue / 100;
             OrgImage200.Opacity = _opacityValue / 100;
             RefCanvas.Opacity = _opacityValue / 100;
+            
 
             var o = 100 - _opacityValue;
 
             Image40.Opacity = o / 100;
             Image80.Opacity = o / 100;
-
+            PrevCanvas.Opacity = o / 100;
 
             Magnification.Invalidate();
         }
@@ -2227,20 +2346,25 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         void InvalidateAllCanvas()
         {
             CalcViewPos();
-            EditBase_Grid.Width = m_viewInfo.Width * m_viewInfo.Scale + 100;
-            EditBase_Grid.Height = m_viewInfo.Height * m_viewInfo.Scale + 100;
+            var w = Math.Max(Edit_ScrollViewer.ActualWidth, m_viewInfo.Width * m_viewInfo.Scale + 100);
+            var h = Math.Max(Edit_ScrollViewer.ActualHeight, m_viewInfo.Height * m_viewInfo.Scale + 100);
+            EditBase_Grid.Width = w;
+            EditBase_Grid.Height = h;
 
             MatCanvas.Invalidate();
             RefCanvas.Invalidate();
+            PrevCanvas.Invalidate();
             MainCanvas.Invalidate();
             EditCanvas.Invalidate();
         }
 
-        private void HandleCheck(object sender, RoutedEventArgs e)
+        bool m_ref80 = false;
+
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-
+            m_ref80 = !m_ref80;
+            RefCanvas.Invalidate();
         }
-
     }
 
 

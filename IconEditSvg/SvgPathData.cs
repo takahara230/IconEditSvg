@@ -394,6 +394,28 @@ namespace IconEditSvg
 
             bool res = false;
 
+            float moveunit = 0.1f;
+            switch (info.MoveUnit) {
+                case MoveUnitDef.normal:
+                    moveunit = 1.0f;
+                    break;
+                case MoveUnitDef.rough:
+                    moveunit = 5.0f;
+                    break;
+            }
+            if (keyCmd == KeyCommand.PageUp || keyCmd == KeyCommand.PageDown) {
+                moveunit = 1f;
+                switch (info.MoveUnit)
+                {
+                    case MoveUnitDef.normal:
+                        moveunit = 5.0f;
+                        break;
+                    case MoveUnitDef.rough:
+                        moveunit = 45.0f;
+                        break;
+                }
+            }
+
             float dr = 0;
             float da = 0;
             float dx = 0;
@@ -401,28 +423,28 @@ namespace IconEditSvg
             switch (keyCmd)
             {
                 case KeyCommand.Home:
-                    dr = 0.1f;
+                    dr = moveunit;
                     break;
                 case KeyCommand.End:
-                    dr = -0.1f;
+                    dr = -moveunit;
                     break;
                 case KeyCommand.PageUp:
-                    da = 1.0f;
+                    da = moveunit;
                     break;
                 case KeyCommand.PageDown:
-                    da = -1.0f;
+                    da = -moveunit;
                     break;
                 case KeyCommand.Up:
-                    dy = -0.1f;
+                    dy = -moveunit;
                     break;
                 case KeyCommand.Down:
-                    dy = 0.1f;
+                    dy = moveunit;
                     break;
                 case KeyCommand.Left:
-                    dx = -0.1f;
+                    dx = -moveunit;
                     break;
                 case KeyCommand.Right:
-                    dx = 0.1f;
+                    dx = moveunit;
                     break;
             }
             Vector2 center = new Vector2(0, 0);
@@ -430,8 +452,25 @@ namespace IconEditSvg
             {
                 if (RulerVisible)
                 {
+                    {
+                        var ruler = Paths[Paths.Count - 1];
+                        center = ruler[0].GetPoint();
+                    }
+                }
+            }
+            else if (polygonUnitValue == PolygonUnit.Symmetry)
+            {
+                if (CurrentIndex.BlockIndex == Paths.Count - 1)
+                {
                     var ruler = Paths[Paths.Count - 1];
-                    center = ruler[0].GetPoint();
+                    if (CurrentIndex.ItemIndex == 0)
+                    {
+                        center = ruler[1].GetPoint();
+                    }
+                    else
+                    {
+                        center = ruler[0].GetPoint();
+                    }
                 }
             }
             else if (polygonUnitValue != PolygonUnit.none)
@@ -439,6 +478,37 @@ namespace IconEditSvg
                 center = CalcCenter(m_path);
             }
             res = item.PointChange(polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr,center);
+            if (res && polygonUnitValue == PolygonUnit.Symmetry && Paths.Count-1 != CurrentIndex.BlockIndex) {
+                // 線対称
+                int pc = m_path.Count;
+                if (m_path.Count < 2) return res;
+                var i1 = m_path[0];
+                var i2 = m_path[m_path.Count - 1];
+                if (i2.IsZ())
+                {
+                    if (m_path.Count < 3) return res;
+                    i2 = m_path[m_path.Count - 2];
+                    pc--;
+                }
+
+                int ti = 0;
+                var ci = pc / 2;
+                if (CurrentIndex.ItemIndex == ci && pc % 2 == 1) return res;
+                if (pc % 2 == 1)
+                {
+                    ti = ci + (ci - CurrentIndex.ItemIndex);
+                }
+                else
+                {
+                    ti = ci + (ci-1- CurrentIndex.ItemIndex);
+                }
+                var rulerlist = Paths[Paths.Count - 1];
+                var start = rulerlist[0].GetPoint();
+                var end = rulerlist[1].GetPoint();
+                m_path[ti].ApplyOtherValue(item, CurrentIndex.PartIndex, start, end);
+
+
+            }
 
 
             return res;
@@ -712,25 +782,54 @@ namespace IconEditSvg
                 var m_path = Paths[CurrentIndex.BlockIndex];
                 if (polygonUnitValue == PolygonUnit.Symmetry)
                 {
-                    var item = m_path[CurrentIndex.ItemIndex];
-                    var p = item.GetPoint(false,CurrentIndex.PartIndex);
+                    if (CurrentIndex.BlockIndex == Paths.Count - 1)
+                    {
+                        Vector2 start = m_path[0].GetPoint();
+                        Vector2 end = m_path[1].GetPoint();
 
-                    Vector2 start = new Vector2();
-                    Vector2 end = new Vector2();
-                    CalcReferenceLine(ref start, ref end);
-
-                    var v1 = end - start;
-                    var a1 = MathF.Atan2(v1.Y, v1.X);
-                    var v2 = p-start;
-                    var a2 = MathF.Atan2(v2.Y, v2.X);
-                    var l = MathF.Abs(MathF.Sin(a2-a1)* MathF.Sqrt(MathF.Pow(v2.X, 2) + MathF.Pow(v2.Y, 2)));
-                    var l2 = MathF.Cos(a2 - a1) * MathF.Sqrt(MathF.Pow(v2.X, 2) + MathF.Pow(v2.Y, 2));
+                        var v1 = end - start;
+                        var a1 = MathF.Atan2(v1.Y, v1.X);
 
 
-                    string text = string.Format("基準から：{1:0.0} 中心線から：{0:0.0} $$  ", l,l2);
+                        string text = string.Format("始点({0:0.00},{1:0.00}) 終点({2:0.00},{3:0.00}) 角度({4:0.0}) ",start.X,start.Y,end.X,end.Y,CmUtils.ToAngle(a1));
 
-                    string info = item.GetInfo(CurrentIndex.PartIndex, true);
-                    return text + info;
+
+                        return text;
+                    }
+                    else
+                    {
+                        Vector2 start = new Vector2();
+                        Vector2 end = new Vector2();
+                        var item = m_path[CurrentIndex.ItemIndex];
+                        var p = item.GetPoint(false, CurrentIndex.PartIndex);
+                        if (RulerEnabled)
+                        {
+                            var ruler = Paths[Paths.Count - 1];
+                            start = ruler[0].GetPoint();
+                            end = ruler[1].GetPoint();
+                        }
+                        else
+                        {
+                            CalcReferenceLine(ref start, ref end);
+                        }
+
+                        /*
+
+                        */
+
+                        var v1 = end - start;
+                        var a1 = MathF.Atan2(v1.Y, v1.X);
+                        var v2 = p - start;
+                        var a2 = MathF.Atan2(v2.Y, v2.X);
+                        var l = MathF.Abs(MathF.Sin(a2 - a1) * MathF.Sqrt(MathF.Pow(v2.X, 2) + MathF.Pow(v2.Y, 2)));
+                        var l2 = MathF.Cos(a2 - a1) * MathF.Sqrt(MathF.Pow(v2.X, 2) + MathF.Pow(v2.Y, 2));
+
+
+                        string text = string.Format("基準から：{1:0.0} 中心線から：{0:0.0} $$  ", l, l2);
+
+                        string info = item.GetInfo(CurrentIndex.PartIndex, true);
+                        return text + info;
+                    }
 
                 }
                 else if (polygonUnitValue == PolygonUnit.RulerOrigin)
@@ -877,7 +976,12 @@ namespace IconEditSvg
             return CurrentIndex;
         }
 
-        void CalcReferenceLine(ref Vector2 start, ref Vector2 end)
+        /// <summary>
+        /// 中心線を計算
+        /// </summary>
+        /// <param name="start"></param>
+        /// <param name="end"></param>
+        internal void CalcReferenceLine(ref Vector2 start, ref Vector2 end)
         {
             bool notset = true;
             var bc = Paths.Count;
@@ -958,6 +1062,7 @@ namespace IconEditSvg
             if (polygonUnitValue == PolygonUnit.RulerOrigin) { }
             else if (polygonUnitValue == PolygonUnit.Symmetry)
             {
+                /*
                 Vector2 start = new Vector2();
                 Vector2 end = new Vector2();
                 CalcReferenceLine(ref start, ref end);
@@ -966,6 +1071,7 @@ namespace IconEditSvg
                 end *= info.Scale;
                 var style = new CanvasStrokeStyle();
                 win2d.DrawLine(start, end, Colors.DodgerBlue,2,style);
+                */
             }
             else
             {

@@ -489,6 +489,7 @@ namespace IconEditSvg
             }
             return ret;
         }
+
         /// <summary>
         /// 指定ポイントの回転
         /// </summary>
@@ -599,46 +600,60 @@ namespace IconEditSvg
             }
         }
 
-
-
         /// <summary>
-        /// 渡されたアイテムを回転した値にセット。
+        /// item の線対称の値をセット
         /// </summary>
-        /// <param name="item0"></param>
-        /// <param name="info"></param>
-        /// <param name="oa"></param>
-        /// <param name="center"></param>
-        internal void ApplyOtherValue(SvgPathItem item0, float oa, Vector2 center)
+        /// <param name="item"></param>
+        /// <param name="partIndex"></param>
+        /// <param name="start"></param>
+        /// <param name="end"></param>
+        internal void ApplyOtherValue(SvgPathItem item, int partIndex, Vector2 start, Vector2 end)
         {
-            switch (Command)
+            if (item.IsC() || IsC())
             {
-                case 'C':
-                case 'c':
-                    {
-                        if (item0.IsC())
+                switch (Command)
+                {
+                    case 'L':
+                    case 'l':
+                    case 'M':
+                    case 'm':
                         {
-                            Vector2 p = item0.GetPoint();
-                            p = CalcRotatePosition(p, center, oa);
-                            points[2] = p;
+                            var next = item.Next;
+                            if (next == null || !next.IsC()) return;
 
-                            p = item0.GetControlPoint(true);
-                            p = CalcRotatePosition(p, center, oa);
-                            points[1] = p;
 
+
+                            break;
+                        }
+                }
+            }
+            else if (item.IsL() || item.IsM())
+            {
+                switch (Command)
+                {
+                    case 'L':
+                    case 'l':
+                    case 'M':
+                    case 'm':
+                        {
+                            var v = item.GetPoint();
+                            var v0 = end - start;
+                            var a0 = MathF.Atan2(v0.Y, v0.X);
+                            var v1 = v - start;
+                            var a1 = MathF.Atan2(v1.Y, v1.X);
+                            var a = a0 - (a1 - a0);
+                            var l = CmUtils.Length(v, start);
+
+                            Vector2 vn = new Vector2(l * MathF.Cos(a), l * MathF.Sin(a));
+                            vn += start;
+                            points[0] = vn;
                         }
                         break;
-                    }
-                case 'M':
-                case 'l':
-                case 'L':
-                    {
-                        Vector2 p = item0.GetPoint();
-                        p = CalcRotatePosition(p, center, oa);
-                        points[0] = p;
-                        break;
-                    }
+                }
             }
         }
+
+
 
 
         /// <summary>
@@ -1280,7 +1295,17 @@ namespace IconEditSvg
             return true;
         }
 
-
+        /// <summary>
+        /// 位置変更メイン
+        /// </summary>
+        /// <param name="polygonUnit"></param>
+        /// <param name="partIndex"></param>
+        /// <param name="dx"></param>
+        /// <param name="dy"></param>
+        /// <param name="da"></param>
+        /// <param name="dr"></param>
+        /// <param name="center"></param>
+        /// <returns></returns>
         internal bool PointChange(MainPage.PolygonUnit polygonUnit, int partIndex, float dx, float dy, float da, float dr,Vector2 center)
         {
             int unit = (int)polygonUnit;
@@ -1304,9 +1329,10 @@ namespace IconEditSvg
                 // 移動
                 ValueChange(partIndex, dx, dy);
             }
+            //----------------------------------------------------------
             if (polygonUnit == MainPage.PolygonUnit.Symmetry)
             {
-                // 線対称
+
             }
             else if (unit > 0 && polygonUnit!= MainPage.PolygonUnit.RulerOrigin)
             {
