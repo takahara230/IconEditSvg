@@ -801,7 +801,7 @@ namespace IconEditSvg
                         Vector2 start = new Vector2();
                         Vector2 end = new Vector2();
                         var item = m_path[CurrentIndex.ItemIndex];
-                        var p = item.GetPoint(false, CurrentIndex.PartIndex);
+                        var p = item.GetPoint(CurrentIndex.PartIndex);
                         if (RulerEnabled)
                         {
                             var ruler = Paths[Paths.Count - 1];

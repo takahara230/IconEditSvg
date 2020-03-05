@@ -119,10 +119,10 @@ namespace IconEditSvg
 
         }
 
-        public Vector2 GetPoint(bool origin = true,int partIndex=0)
+        public Vector2 GetPoint(int partIndex=-1)
         {
 
-            if (origin) {
+            if (partIndex<0) {
                 partIndex = points.Count - 1;
             }
             if (partIndex>=0 && points.Count > partIndex)
@@ -618,13 +618,48 @@ namespace IconEditSvg
                     case 'M':
                     case 'm':
                         {
-                            var next = item.Next;
-                            if (next == null || !next.IsC()) return;
+                            if (item.IsC())
+                            {
+                                // 自分の次はCで無いとつじつまが合わない
+                                var next = this.Next;
+                                if (next == null || !next.IsC()) return;
 
-
-
+                                if (partIndex == 2)
+                                {
+                                    points[0] = CalcSymmetricPoint(item.GetPoint( partIndex), start, end);
+                                }
+                                if (partIndex == 2 || partIndex == 1)
+                                {
+                                    var v = CalcSymmetricPoint(item.GetPoint(1), start, end);
+                                    next.SetPoint(v, 0);
+                                }
+                                if (partIndex == 0)
+                                {
+                                    var v = CalcSymmetricPoint(item.GetPoint(1), start, end);
+                                    next.SetPoint(v, 1);
+                                }
+                            }
                             break;
                         }
+                    case 'c':
+                    case 'C':
+                        // 自分が C 
+                        if (item.IsL() || item.IsM()) {
+                            // itemの次はCで無いとつじつまが合わない
+                            var next = item.Next;
+                            if (next == null || !next.IsC()) return;
+                            
+                            {
+                                var v = CalcSymmetricPoint(item.GetPoint(), start, end);
+                                SetPoint(v,2);
+                            }
+                            
+                            {
+                                var v = CalcSymmetricPoint(next.GetPoint(0), start, end);
+                                SetPoint(v, 1);
+                            }
+                        }
+                        break;
                 }
             }
             else if (item.IsL() || item.IsM())
@@ -636,21 +671,25 @@ namespace IconEditSvg
                     case 'M':
                     case 'm':
                         {
-                            var v = item.GetPoint();
-                            var v0 = end - start;
-                            var a0 = MathF.Atan2(v0.Y, v0.X);
-                            var v1 = v - start;
-                            var a1 = MathF.Atan2(v1.Y, v1.X);
-                            var a = a0 - (a1 - a0);
-                            var l = CmUtils.Length(v, start);
-
-                            Vector2 vn = new Vector2(l * MathF.Cos(a), l * MathF.Sin(a));
-                            vn += start;
-                            points[0] = vn;
+                            points[0] = CalcSymmetricPoint(item.GetPoint(), start, end);
                         }
                         break;
                 }
             }
+        }
+
+        Vector2 CalcSymmetricPoint(Vector2 v, Vector2 start, Vector2 end)
+        {
+            var v0 = end - start;
+            var a0 = MathF.Atan2(v0.Y, v0.X);
+            var v1 = v - start;
+            var a1 = MathF.Atan2(v1.Y, v1.X);
+            var a = a0 - (a1 - a0);
+            var l = CmUtils.Length(v, start);
+
+            Vector2 vn = new Vector2(l * MathF.Cos(a), l * MathF.Sin(a));
+            vn += start;
+            return vn;
         }
 
 
@@ -900,7 +939,7 @@ namespace IconEditSvg
         /// 
         /// </summary>
         /// <param name="p"></param>
-        internal void SetPoint(Vector2 p)
+        internal void SetPoint(Vector2 p,int partIndex=-1)
         {
             switch (Command)
             {
@@ -916,6 +955,14 @@ namespace IconEditSvg
                     {
                         points[0] = p;
                     }
+                    break;
+                case 'c':
+                case 'C':
+                    if (partIndex > 2) return;
+                    if (partIndex < 0) {
+                        partIndex = 2;
+                    }
+                    points[partIndex] = p;
                     break;
 
             }
