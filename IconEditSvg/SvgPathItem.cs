@@ -644,7 +644,48 @@ namespace IconEditSvg
                     case 'c':
                     case 'C':
                         // 自分が C 
-                        if (item.IsL() || item.IsM()) {
+                        if (item.IsC())
+                        {
+                            if (partIndex == 2) //終点　この場合は全体を移動
+                            {
+                                {
+                                    var v = CalcSymmetricPoint(item.GetPoint(), start, end);
+                                    SetPoint(v, 2);
+                                }
+                                // 制御点をitemの制御点にあわせる
+                                {
+                                    // item の終点の制御点を next の始点の制御点に
+                                    var next = this.Next;
+                                    if (next != null && next.IsC())
+                                    {
+                                        var v = CalcSymmetricPoint(item.GetPoint(1), start, end);
+                                        next.SetPoint(v, 0);
+                                    }
+                                }
+                                {
+                                    // item の 次の始点の制御点を this の終点の制御点に
+                                    var next = item.Next;
+
+                                    if (next != null && next.IsC())
+                                    {
+                                        var v = CalcSymmetricPoint(next.GetPoint(0), start, end);
+                                        SetPoint(v, 1);
+                                    }
+                                }
+                            }
+                            else if (partIndex == 0) 
+                            {
+                                // 相手側の始点制御点の変更　なので、相手側の対象点を自分の次のアイテムの終点制御点へ
+                                var next = this.Next;
+                                if (next != null && next.IsC())
+                                {
+                                    var v = CalcSymmetricPoint(item.GetPoint(0), start, end);
+                                    next.SetPoint(v, 1);
+                                }
+                            }
+                        }
+                        else if (item.IsL() || item.IsM())
+                        {
                             // itemの次はCで無いとつじつまが合わない
                             var next = item.Next;
                             if (next == null || !next.IsC()) return;
@@ -677,7 +718,13 @@ namespace IconEditSvg
                 }
             }
         }
-
+        /// <summary>
+        /// 線対称の位置を計算
+        /// </summary>
+        /// <param name="v"></param>
+        /// <param name="start">線対称の線の始点</param>
+        /// <param name="end">線対称の線の終点</param>
+        /// <returns></returns>
         Vector2 CalcSymmetricPoint(Vector2 v, Vector2 start, Vector2 end)
         {
             var v0 = end - start;

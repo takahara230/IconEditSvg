@@ -1378,7 +1378,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 var properties = e.GetCurrentPoint(MainCanvas).Properties;
                 if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
                 {
-                    SvgPathItem selectedItem = Info.TargetPathData.GetSelectedItem();
+                    var selectedItem = Info.TargetPathData.GetSelectedItem();
                     if (selectedItem != null)
                     {
 
