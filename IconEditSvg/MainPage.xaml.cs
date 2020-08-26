@@ -340,6 +340,10 @@ namespace IconEditSvg
         private Command _menuCommand;
 
         string svgdata;
+        int svgWidth = 40;
+        int svgHeight = 40;
+        int org40Width = 40;
+        int org40Height = 40;
         byte[] folder40bytes;
         byte[] OrgImageBytes;
         byte[] OrgImage2xBytes;
@@ -621,6 +625,28 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 XmlLoadSettings xmlLoadSettings = new XmlLoadSettings();
                 xmlLoadSettings.ElementContentWhiteSpace = false;
                 m_svgXmlDoc = await XmlDocument.LoadFromFileAsync(file, xmlLoadSettings);
+                XmlElement root = m_svgXmlDoc.DocumentElement;
+
+
+
+                try
+                {
+                    var w = root.GetAttribute("width");
+                    w = w.Replace("px", "");
+                    svgWidth = int.Parse(w);
+                    var h = root.GetAttribute("height");
+                    h = h.Replace("px", "");
+                    svgHeight = int.Parse(h);
+                    svgWidth /= 2;
+                    svgHeight /= 2;
+                }
+                catch (Exception)
+                {
+                    svgWidth = 40;
+                    svgHeight = 40;
+                }                
+                
+                
                 svgdata = m_svgXmlDoc.GetXml();
 #endif
 
@@ -635,7 +661,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         Magnification.Invalidate();
                         //Magnification.Source = i40;
                     }
-                    var i80 = await this.makeImageFromSvgAsync((Size)new Size((double)80, (double)80), (Size)new Size((double)80, (double)80));
+                    Size size80 = new Size(svgWidth * 2, svgHeight * 2);
+
+                    var i80 = await this.makeImageFromSvgAsync(size80,size80);
                     if (i80 != null)
                     {
                         Image80.Source = i80;
@@ -854,8 +882,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 #else
                 float w = m_viewInfo.Scale;
 
-                int cl = m_viewInfo.Height;
-                for (int row = 0; row < m_viewInfo.Width; row++)
+                int cl = m_viewInfo.Width;
+                for (int row = 0; row < m_viewInfo.Height; row++)
                 {
                     for (int col = 0; col < cl; col++)
                     {
@@ -880,8 +908,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                 float w = m_viewInfo.Scale * 2;
 
-                int cl = 40;
-                for (int row = 0; row < 40; row++)
+                int cl = (int)org40Width;
+                for (int row = 0; row < org40Height; row++)
                 {
                     for (int col = 0; col < cl; col++)
                     {
@@ -1078,8 +1106,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             if (OrgImageBytes != null)
             {
-                int cl = 40;
-                for (int row = 0; row < 40; row++)
+                int cl = org40Width;
+                for (int row = 0; row < org40Height; row++)
                 {
                     for (int col = 0; col < cl; col++)
                     {
@@ -1099,8 +1127,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             if (folder40bytes != null)
             {
-                int cl = 40;
-                for (int row = 0; row < 40; row++)
+                int cl = svgWidth;
+                for (int row = 0; row < svgHeight; row++)
                 {
                     for (int col = 0; col < cl; col++)
                     {
@@ -1132,8 +1160,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             WriteableBitmap writeableBitmap;
 
-            Size targetSize = new Size(40, 40);
-            Size orgSize = new Size(80, 80);
+            Size targetSize = new Size(svgWidth, svgHeight);
+            Size orgSize = new Size(svgWidth*2, svgHeight*2);
 
 
 
@@ -1145,6 +1173,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                                       (float)targetSize.Height,
                                                       96);
                 var doc = CanvasSvgDocument.LoadFromXml(device, svgdata);
+                
 
                 using (var ds = renderer.CreateDrawingSession())
                 {
@@ -1205,11 +1234,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 if (success)
                 {
                     i40 = await SampleAsync();
-                    i80 = await this.makeImageFromSvgAsync((Size)new Size((double)80, (double)80), (Size)new Size((double)80, (double)80));
+                    var size = new Size(svgWidth * 2, svgHeight * 2);
+                    i80 = await this.makeImageFromSvgAsync(size,size);
                 }
                 Magnification.Invalidate();
                 Image40.Source = i40;
                 Image80.Source = i80;
+                Image40.Width = svgWidth;
+                Image40.Height = svgHeight;
+                Image80.Width = svgWidth * 2;
+                Image80.Height = svgHeight * 2;
+
             }));
         }
 
@@ -2155,27 +2190,69 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     PngFile200 = null;
                     OrgImage100.Source = null;
                     OrgImage200.Source = null;
+                    org40Width = 40;
+                    org40Height = 40;
+                    m_viewInfo.Width = 80;
+                    m_viewInfo.Height = 80;
 
                     if (file0 != null)
                     {
+#if true
+                        BitmapImage bitmap = new BitmapImage();
+                        using (var s = await file0.OpenReadAsync())
+                        {
+                            bitmap.SetSource(s);
+                        }
+                        org40Width = bitmap.PixelWidth;
+                        org40Height = bitmap.PixelHeight;
+                        PngFile100 = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
+                        using (var s = await file0.OpenReadAsync())
+                        {
+                            PngFile100.SetSource(s);
+                            OrgImageBytes = PngFile100.PixelBuffer.ToArray();
+                        }
+#else
                         PngFile100 = new WriteableBitmap(40, 40);
                         using (var s = await file0.OpenReadAsync())
                         {
                             PngFile100.SetSource(s);
                             OrgImageBytes = PngFile100.PixelBuffer.ToArray();
                         }
+#endif
                     }
                     if (file1 != null)
                     {
-                        PngFile200 = new WriteableBitmap(80, 80);
+
+                        BitmapImage bitmap = new BitmapImage();
+                        using (var s = await file1.OpenReadAsync())
+                        {
+                            bitmap.SetSource(s);
+                        }
+                        m_viewInfo.Width = bitmap.PixelWidth;
+                        m_viewInfo.Height = bitmap.PixelHeight;
+                        PngFile200 = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
                         using (var s = await file1.OpenReadAsync())
                         {
                             PngFile200.SetSource(s);
                             OrgImage2xBytes = PngFile200.PixelBuffer.ToArray();
                         }
                     }
+                    if (file1 == null) {
+                        m_viewInfo.Width = org40Width * 2;
+                        m_viewInfo.Height = org40Height * 2;
+                    }
+                    if (file0 == null) {
+                        org40Width = m_viewInfo.Width / 2;
+                        org40Height = m_viewInfo.Height / 2;
+                    }
+                    svgWidth = org40Width;
+                    svgHeight = org40Height;
                     OrgImage100.Source = PngFile100;
+                    OrgImage100.Width = org40Width;
+                    OrgImage100.Height = org40Height;
                     OrgImage200.Source = PngFile200;
+                    OrgImage200.Width = m_viewInfo.Width;
+                    OrgImage200.Height = m_viewInfo.Height;
                     Magnification.Invalidate();
 
 
@@ -2194,7 +2271,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     }
 
 
-                    RefCanvas.Invalidate(); // いらない多分、後で見る
+                    InvalidateAllCanvas();
 
                     UpdateSvgByText();
 
