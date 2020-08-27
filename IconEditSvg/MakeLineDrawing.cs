@@ -230,8 +230,12 @@ namespace IconEditSvg
                     }
                     break;
                 case MouseEventKind.Double:
-                    _mainPage.CreatePath(_points,false);
-                    CancelEvent();
+                    if (_points.Count > 2)
+                    {
+                        _points.RemoveAt(_points.Count - 1);
+                        _mainPage.CreatePath(_points, false);
+                    }
+                    CancelEvent();// _poits 等もクリア
                     break;
             }
         }

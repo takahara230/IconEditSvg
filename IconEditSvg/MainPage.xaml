@@ -56,7 +56,7 @@
                         <RowDefinition Height="1"/>
                     </Grid.RowDefinitions>
                     <TextBox Name="svgText" TextWrapping="Wrap" Width="300" ScrollViewer.VerticalScrollBarVisibility="Auto" Grid.Row="0" AcceptsReturn="True"/>
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" Grid.Row="1">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Grid.Row="1">
                         <TreeView x:Name="sampleTreeView" SelectionMode="Multiple"
                               DragItemsStarting="SampleTreeView_DragItemsStarting"
                               ItemTemplateSelector="{StaticResource ExplorerItemTemplateSelector}"

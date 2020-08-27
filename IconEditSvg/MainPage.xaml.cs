@@ -312,8 +312,8 @@ namespace IconEditSvg
                     _ = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, (Windows.UI.Core.DispatchedHandler)(async () =>
                     {
                         var result = await FocusManager.TryFocusAsync(EditCanvas, FocusState.Keyboard);
-                        if (result.Succeeded) System.Diagnostics.Debug.WriteLine("成功");
-                        else Debug.WriteLine("失敗");
+                        if (result.Succeeded) System.Diagnostics.Debug.WriteLine("フォーカス成功");
+                        else Debug.WriteLine("フォーカス失敗");
                     }));
 
 
@@ -421,11 +421,16 @@ namespace IconEditSvg
             }
         }
 
+        DateTime zoomtime=DateTime.Now;
+
         private void CoreWindow_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
-            int modifier = GetKeyModifier();
-            if (modifier == KEYMODIFIER_CONTROL)
             {
+                DateTime dt = DateTime.Now;
+                TimeSpan span = dt - zoomtime;
+                if (span.TotalMilliseconds < 100)
+                    return;
+                zoomtime = dt;
                 args.Handled = true;
                 var delta = args.CurrentPoint.Properties.MouseWheelDelta;
 
@@ -460,6 +465,11 @@ namespace IconEditSvg
                 modifier |= KEYMODIFIER_CONTROL;
             if (coreWindow.GetKeyState(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down))
                 modifier |= KEYMODIFIER_SHIFT;
+            if (coreWindow.GetKeyState(VirtualKey.LeftControl).HasFlag(CoreVirtualKeyStates.Down))
+                modifier |= KEYMODIFIER_CONTROL;
+            if (coreWindow.GetKeyState(VirtualKey.RightControl).HasFlag(CoreVirtualKeyStates.Down))
+                modifier |= KEYMODIFIER_CONTROL;
+
             return modifier;
         }
 
@@ -2139,7 +2149,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     else
                     {
                         //svgdata = @"<svg width=""80px"" height=""80px""><path d=""M51 47h21.5l5.875 7-5.875 7H51a2 2 0 0 1-2-2V49a2 2 0 0 1 2-2z"" fill=""none"" stroke-width=""1.8"" stroke=""#000""/></svg>";
-                        svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80"" height = ""80"" ></svg>";
+                        svgdata = @"<svg version = ""1.1"" xmlns:xlink = ""http://www.w3.org/1999/xlink"" xmlns = ""http://www.w3.org/2000/svg"" width = ""80"" height = ""80"" stroke=""#000"" stroke-width=""2"" fill=""none"" stroke-linecap=""square""></svg>";
 
                     }
 
@@ -2347,11 +2357,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             {
             }
             System.Diagnostics.Debug.WriteLine(path);
-            var childElement = m_svgXmlDoc.CreateElement("path");
+            //var childElement = m_svgXmlDoc.CreateElement("path");
+            var childElement = m_svgXmlDoc.CreateElementNS("http://www.w3.org/2000/svg", "path");
             childElement.SetAttribute("d", path);
-            childElement.SetAttribute("stroke", "#000");
-            childElement.SetAttribute("stroke-width", "2");
-            childElement.SetAttribute("fill", "none");
+//            childElement.SetAttribute("stroke", "#000");
+//            childElement.SetAttribute("stroke-width", "2");
+//            childElement.SetAttribute("fill", "none");
 
 
             var root = m_svgXmlDoc.DocumentElement;
