@@ -137,7 +137,7 @@ namespace IconEditSvg
             switch (Command)
             {
                 case 'M':
-                    return Colors.Purple;
+                    return Color.FromArgb(180,0,255,255);// Colors.Purple;
                 case 'h':
                 case 'H':
                 case 'v':
@@ -147,7 +147,7 @@ namespace IconEditSvg
                     return Colors.OrangeRed;
                 case 'c':
                 case 'C':
-                    return Colors.Green;
+                    return Color.FromArgb(180,0,255,0);// Colors.Green;
                 case 'a':
                 case 'A':
                     return Colors.HotPink;
@@ -185,6 +185,7 @@ namespace IconEditSvg
                 case 'C':
                     if (points.Count == 3)
                     {
+                        Color color = GetColor();
                         Vector2 point = points[2];
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
@@ -198,14 +199,14 @@ namespace IconEditSvg
                         Vector2 p1 = points[0];
                         float x1 = (float)p1.X * scale;
                         float y1 = (float)p1.Y * scale;
-                        win2d.DrawLine(x0, y0, x1, y1, Colors.Green);
+                        win2d.DrawLine(x0, y0, x1, y1, color);
                         DrawAnchorSub(win2d, viewInfo, myIndex, 0, x1, y1);
 
 
                         Vector2 p2 = points[1];
                         float x2 = (float)p2.X * scale;
                         float y2 = (float)p2.Y * scale;
-                        win2d.DrawLine(x, y, x2, y2, Colors.Green);
+                        win2d.DrawLine(x, y, x2, y2, color);
                         DrawAnchorSub(win2d, viewInfo, myIndex, 1, x2, y2);
                     }
                     break;
@@ -231,7 +232,8 @@ namespace IconEditSvg
             {
                 case 'c':
                 case 'C':
-                    ellipse = false;
+                    if(partIndex==2)
+                        ellipse = false;
                     break;
                 default:
                     break;
@@ -314,7 +316,6 @@ namespace IconEditSvg
                         Vector2 point = points[2];
                         float x = (float)point.X * scale;
                         float y = (float)point.Y * scale;
-                        //win2d.DrawEllipse(x, y, 3, 3, Colors.Green);
                         if (IsNear(x, y, mousePoint.X, mousePoint.Y))
                         {
                             return 2;

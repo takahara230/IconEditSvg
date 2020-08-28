@@ -425,6 +425,7 @@ namespace IconEditSvg
 
         private void CoreWindow_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
+            if (sender.GetKeyState(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down))
             {
                 DateTime dt = DateTime.Now;
                 TimeSpan span = dt - zoomtime;
@@ -1558,7 +1559,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             }
                         case MouseEventKind.Release:
                             {
-                                if (!moved && m_viewInfo.PressIndex.IsValid() && m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
+                                if (!moved && m_viewInfo.PressIndex!=null &&  m_viewInfo.PressIndex.IsValid() && m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
                                 {
                                     Info.TargetPathData.SelectHandle(m_viewInfo.PressIndex);
                                     MainCanvas.Invalidate();
