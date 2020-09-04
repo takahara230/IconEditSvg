@@ -44,7 +44,10 @@ using Windows.System;
 namespace IconEditSvg
 {
 
-
+    public enum ParamIndex { 
+        C_StartControlPoint=0,
+        C_EndControlPoint=1,
+        C_EndPoint=2,};
     public enum KeyCommand { Non, Up, Down, Left, Right, Del, Esc, Tab, PageUp, PageDown, Ins, Home, End };
     public enum MouseEventKind { Press, Move, Release, Double, Non };
     public class Command : ICommand
@@ -905,6 +908,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         byte g = OrgImage2xBytes[index + 1];
                         byte b = OrgImage2xBytes[index + 0];
                         byte a = OrgImage2xBytes[index + 3];
+                        if (a > 0)
+                        {
+                            r = (byte)(r * 255 / a);
+                            g = (byte)(g * 255 / a);
+                            b = (byte)(b * 255 / a);
+                        }
                         //                        a = (byte)((float)a * _opacityValue / 100);
                         Rect rect = new Rect(x + col * w, y + row * w, w, w);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
@@ -931,6 +940,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         byte g = OrgImageBytes[index + 1];
                         byte b = OrgImageBytes[index + 0];
                         byte a = OrgImageBytes[index + 3];
+                        if (a > 0)
+                        {
+                            r = (byte)(r * 255 / a);
+                            g = (byte)(g * 255 / a);
+                            b = (byte)(b * 255 / a);
+                        }
                         //                        a = (byte)((float)a * _opacityValue / 100);
                         Rect rect = new Rect(x + col * w, y + row * w, w, w);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
@@ -1125,10 +1140,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         int index = (row * cl + col) * 4;
                         if (index >= OrgImageBytes.Length) break;
 
+                        byte a = OrgImageBytes[index + 3];
+                        
+
                         byte r = OrgImageBytes[index + 2];
                         byte g = OrgImageBytes[index + 1];
                         byte b = OrgImageBytes[index + 0];
-                        byte a = OrgImageBytes[index + 3];
+                        if (a > 0) {
+                            r = (byte)(r * 255 / a);
+                            g = (byte)(g * 255 / a);
+                            b = (byte)(b * 255 / a);
+                        }
                         a = (byte)((float)a * _opacityValue / 100);
                         Rect rect = new Rect(col * 8, row * 8, 8, 8);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
@@ -1150,11 +1172,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         byte g = folder40bytes[index + 1];
                         byte b = folder40bytes[index + 0];
                         byte a = folder40bytes[index + 3];
+                        if (a > 0)
+                        {
+                            r = (byte)(r * 255 / a);
+                            g = (byte)(g * 255 / a);
+                            b = (byte)(b * 255 / a);
+                        }
                         a = (byte)((float)a * (100 - _opacityValue) / 100);
                         Rect rect = new Rect(col * 8, row * 8, 8, 8);
                         args.DrawingSession.FillRectangle(rect, Color.FromArgb(a, r, g, b));
-
-                        //Debug.WriteLine("a {0} r {1} g {2} b {3}",a,r,g,b);
                     }
                 }
             }
@@ -1194,18 +1220,34 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                 stream.Seek(0);
                 await renderer.SaveAsync(stream, CanvasBitmapFileFormat.Png);
-
+#if true
                 writeableBitmap = new WriteableBitmap((int)targetSize.Width, (int)targetSize.Height);
                 await writeableBitmap.SetSourceAsync(stream);
+#else
+                stream.Seek(0);
+                BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
 
+                PixelDataProvider pix = await decoder.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8,
+                BitmapAlphaMode.Straight,
+                new BitmapTransform(),
+                ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.DoNotColorManage);
 
-
+                byte[] bitmapbytes = pix.DetachPixelData();
+                writeableBitmap = new WriteableBitmap((int)decoder.OrientedPixelWidth, (int)decoder.OrientedPixelHeight);
+//                Stream pixStream = writeableBitmap.PixelBuffer.AsStream();
+//                pixStream.Write(bitmapbytes, 0, (int)(decoder.OrientedPixelWidth * decoder.OrientedPixelHeight * 4));
+#endif
 
             }
+
             if (writeableBitmap == null) return null;
             folder40bytes = writeableBitmap.PixelBuffer.ToArray();
+
             return writeableBitmap;
         }
+
 
         private void AppBarButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1504,7 +1546,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 {
                     return;
                 }
-
+                bool invalidate = false;
                 var ptrPt = e.GetCurrentPoint(MainCanvas);// MainCanvas の座標に変換
                 if (m_viewInfo.TargetPathData != null)
                 {
@@ -1536,6 +1578,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 {
                                     m_viewInfo.HoverIndex = mouseIndex;
                                     MainCanvas.Invalidate();
+                                    invalidate = true;
                                 }
                                 break;
                             }
@@ -1559,15 +1602,17 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             }
                         case MouseEventKind.Release:
                             {
-                                if (!moved && m_viewInfo.PressIndex!=null &&  m_viewInfo.PressIndex.IsValid() && m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
+                                if (!moved && m_viewInfo.PressIndex != null && m_viewInfo.PressIndex.IsValid() && m_viewInfo.HoverIndex == m_viewInfo.PressIndex)
                                 {
                                     Info.TargetPathData.SelectHandle(m_viewInfo.PressIndex);
                                     MainCanvas.Invalidate();
+                                    invalidate = true;
                                 }
                                 else if (Info.TargetPathData.IsSelectHandle())
                                 {
                                     Info.TargetPathData.DeSelected();
                                     MainCanvas.Invalidate();
+                                    invalidate = true;
                                 }
                                 m_viewInfo.PressIndex = null;
 
@@ -1575,6 +1620,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 EditCanvas.Focus(FocusState.Keyboard);
                                 break;
                             }
+                    }
+                    if (!invalidate) { 
+                        // 線上チェック
                     }
 
                 }
@@ -2208,45 +2256,11 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                     if (file0 != null)
                     {
-#if true
-                        BitmapImage bitmap = new BitmapImage();
-                        using (var s = await file0.OpenReadAsync())
-                        {
-                            bitmap.SetSource(s);
-                        }
-                        org40Width = bitmap.PixelWidth;
-                        org40Height = bitmap.PixelHeight;
-                        PngFile100 = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
-                        using (var s = await file0.OpenReadAsync())
-                        {
-                            PngFile100.SetSource(s);
-                            OrgImageBytes = PngFile100.PixelBuffer.ToArray();
-                        }
-#else
-                        PngFile100 = new WriteableBitmap(40, 40);
-                        using (var s = await file0.OpenReadAsync())
-                        {
-                            PngFile100.SetSource(s);
-                            OrgImageBytes = PngFile100.PixelBuffer.ToArray();
-                        }
-#endif
+                        await ReadPngFile(file0, false);
                     }
                     if (file1 != null)
                     {
-
-                        BitmapImage bitmap = new BitmapImage();
-                        using (var s = await file1.OpenReadAsync())
-                        {
-                            bitmap.SetSource(s);
-                        }
-                        m_viewInfo.Width = bitmap.PixelWidth;
-                        m_viewInfo.Height = bitmap.PixelHeight;
-                        PngFile200 = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
-                        using (var s = await file1.OpenReadAsync())
-                        {
-                            PngFile200.SetSource(s);
-                            OrgImage2xBytes = PngFile200.PixelBuffer.ToArray();
-                        }
+                        await ReadPngFile(file1, true);
                     }
                     if (file1 == null) {
                         m_viewInfo.Width = org40Width * 2;
@@ -2292,6 +2306,59 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
 
 
+        }
+
+        async Task ReadPngFile(StorageFile file,bool png2x)
+        {
+            WriteableBitmap img;
+            byte[] bitmapbytes;
+#if true
+            BitmapImage bitmap = new BitmapImage();
+                        using (var s = await file.OpenReadAsync())
+                        {
+                            bitmap.SetSource(s);
+                        }
+//                        org40Width = bitmap.PixelWidth;
+//                        org40Height = bitmap.PixelHeight;
+                         img = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
+                        using (var s = await file.OpenReadAsync())
+                        {
+                            img.SetSource(s);
+                            bitmapbytes = img.PixelBuffer.ToArray();
+                        }
+
+#else
+            using (IRandomAccessStream stream = await file.OpenReadAsync())
+            {
+
+                // Create a decoder from the stream. With the decoder, we can get 
+                // the properties of the image.
+                BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+
+                PixelDataProvider pix = await decoder.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8,
+                BitmapAlphaMode.Straight,
+                new BitmapTransform(),
+                ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+
+                bitmapbytes = pix.DetachPixelData();
+                img = new WriteableBitmap((int)decoder.OrientedPixelWidth, (int)decoder.OrientedPixelHeight);
+                Stream pixStream = img.PixelBuffer.AsStream();
+                pixStream.Write(bitmapbytes, 0, (int)(decoder.OrientedPixelWidth * decoder.OrientedPixelHeight * 4));
+            }
+#endif
+            if (png2x) {
+                OrgImage2xBytes = bitmapbytes;
+                PngFile200 = img;
+                m_viewInfo.Width = img.PixelWidth;
+                m_viewInfo.Height = img.PixelHeight;
+            } else {
+                OrgImageBytes = bitmapbytes;
+                PngFile100 = img;
+                org40Width = img.PixelWidth;
+                org40Height = img.PixelHeight;
+            }
         }
 
         private void Slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
