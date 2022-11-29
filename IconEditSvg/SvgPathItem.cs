@@ -13,6 +13,11 @@ namespace IconEditSvg
 {
     public class SvgPathItem
     {
+        static int POS_C_CONTROLPOINT1 = 0;
+        static int POS_C_CONTROLPOINT2 = 1;
+        static int POS_C_END = 2;
+
+
         List<Vector2> points;
         public char Command;
 
@@ -837,6 +842,15 @@ namespace IconEditSvg
             }
         }
 
+        internal void MovePos(int partIndex, float x, float y) 
+        {
+            Vector2 p = points[partIndex];
+            p.X += x;
+            p.Y += y;
+            points[partIndex] = p;
+
+        }
+
         internal bool MovePos(int partIndex, Vector2 pos)
         {
             var p0 = points[partIndex];
@@ -846,8 +860,21 @@ namespace IconEditSvg
             y = y - p0.Y;
             if (x == 0 && y == 0) return false;
 
-            MoveAll(x, y);
-
+            if (IsC())
+            {
+                MovePos(partIndex, x, y);
+                if (partIndex == POS_C_END) {
+                    MovePos(POS_C_CONTROLPOINT2, x, y);
+                    var next = this.Next;
+                    if (next.IsC()) {
+                        next.MovePos(POS_C_CONTROLPOINT1, x, y);
+                    }
+                }
+            }
+            else 
+            {
+                MoveAll(x, y);
+            }
             return true;
         }
 

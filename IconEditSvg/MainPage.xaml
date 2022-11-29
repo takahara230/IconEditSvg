@@ -105,6 +105,18 @@
                 SelectedValue="{Binding PolygonUnitValue, Mode=TwoWay}"
                 SelectedValuePath="Key" VerticalAlignment="Center" Width="150"
         />
+                        <AppBarSeparator/>
+                        <AppBarButton Label="ZoomIn" Click="AppBarZoomInButton_Click">
+                            <AppBarButton.Icon>
+                                <SymbolIcon Symbol="ZoomIn"/>
+                            </AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton Label="ZoomOut" Click="AppBarZoomOutButton_Click">
+                            <AppBarButton.Icon>
+                                <SymbolIcon Symbol="ZoomOUt"/>
+                            </AppBarButton.Icon>
+                        </AppBarButton>
+
                     </StackPanel>
                     <StackPanel Orientation="Vertical" Grid.Row="1">
                         <Grid Height="1" Background="Silver" HorizontalAlignment="Stretch"/>
@@ -116,15 +128,15 @@
                                 <canvas:CanvasControl Name="MatCanvas" Draw="MatCanvas_Draw"/>
                                 <canvas:CanvasControl Name="RefCanvas" Draw="RefCanvas_Draw" Opacity=".5"/>
                                 <canvas:CanvasControl Name="PrevCanvas" Draw="PrevCanvas_Draw" Opacity=".5"/>
-                            
-                            <canvas:CanvasControl Draw="MainCanvas_Draw" Name="MainCanvas" PointerMoved="MainCanvas_PointerMoved" PointerPressed="MainCanvas_PointerPressed" PointerReleased="MainCanvas_PointerReleased"/>
-                            <canvas:CanvasControl Name="EditCanvas" Draw="EditCanvas_Draw" Visibility="Collapsed"
+
+                                <canvas:CanvasControl Draw="MainCanvas_Draw" Name="MainCanvas" PointerMoved="MainCanvas_PointerMoved" PointerPressed="MainCanvas_PointerPressed" PointerReleased="MainCanvas_PointerReleased"/>
+                                <canvas:CanvasControl Name="EditCanvas" Draw="EditCanvas_Draw" Visibility="Collapsed"
                                                   PointerPressed="EditCanvas_PointerPressed" PointerMoved="EditCanvas_PointerMoved" PointerReleased="EditCanvas_PointerReleased" 
                                                   PointerCanceled="EditCanvas_PointerCanceled" PointerCaptureLost="EditCanvas_PointerCaptureLost" DoubleTapped="EditCanvas_DoubleTapped"
                           
                           
                                                   >
-                            </canvas:CanvasControl>
+                                </canvas:CanvasControl>
                             </Grid>
                         </ScrollViewer>
                     </Border>
