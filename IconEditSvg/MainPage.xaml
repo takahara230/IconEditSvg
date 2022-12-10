@@ -34,13 +34,12 @@
             <Border Grid.Row="0" BorderBrush="Aqua" BorderThickness="1">
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Name="TargetFolder" Text="" Grid.Column="0" Margin="4,4,4,4" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1" Click="Button_Click" Margin="2,0,2,0">権限取得...</Button>
-                    <Button Grid.Column="2" Click="OpenButton_Click" Margin="2,0,2,0">ファイル...</Button>
+                    <Button Grid.Column="0" Click="Button_Click" Margin="2,0,2,0">作業フォルダ...</Button>
+                    <TextBlock Name="TargetFolder" Text="" Grid.Column="1" Margin="4,4,4,4" VerticalAlignment="Center"/>
+                    
                 </Grid>
             </Border>
             <Grid Grid.Row="1">
@@ -116,7 +115,8 @@
                                 <SymbolIcon Symbol="ZoomOUt"/>
                             </AppBarButton.Icon>
                         </AppBarButton>
-
+                        <AppBarSeparator/>
+                        <Button x:Name="ChamferRadiusButton" Grid.Column="0" Click="Chamfer_R_Button_Click" Margin="2,0,2,0">半径:4</Button>
                     </StackPanel>
                     <StackPanel Orientation="Vertical" Grid.Row="1">
                         <Grid Height="1" Background="Silver" HorizontalAlignment="Stretch"/>
@@ -173,6 +173,7 @@
                             <canvas:CanvasControl Name="Magnification" Draw="Magnification_Draw"/>
                         </Grid>
                     </Border>
+                    <!-- フォルダにある画像リスト -->
                     <ScrollViewer Grid.Row="2" Width="340">
                         <ListView ItemsSource="{x:Bind ViewModel.Recordings}" Tapped="ListView_Tapped" Name="IconListView">
                             <ListView.ItemTemplate>

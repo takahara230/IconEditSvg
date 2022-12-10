@@ -39,7 +39,7 @@ namespace IconEditSvg
         }
         public bool MoveNext()
         {
-            if (paths == null || paths.Count==0) return false;
+            if (paths == null || paths.Count == 0) return false;
 
             currentIndex++;
             if (paths[blockIndex].Count <= currentIndex)
@@ -109,7 +109,7 @@ namespace IconEditSvg
 
             public bool IsValid()
             {
-                return (BlockIndex >= 0 && ItemIndex >= 0 && PartIndex >= 0);
+                return BlockIndex >= 0 && ItemIndex >= 0 && PartIndex >= 0;
 
             }
 
@@ -186,8 +186,9 @@ namespace IconEditSvg
                     {
                         path.Add(p);
                     }
-                    if (befor != null) {
-                        befor.Next = p;   
+                    if (befor != null)
+                    {
+                        befor.Next = p;
                     }
                     befor = p;
                 }
@@ -255,32 +256,253 @@ namespace IconEditSvg
         /// 直線と直線の交わりにベジェを挿入し角丸めにする。
         /// </summary>
         /// <returns></returns>
-        internal bool InsRoundCorner()
+        internal bool InsRoundCorner(float r)
         {
-            if (!CurrentIndex.IsValid()) return false;
+            if (!CurrentIndex.IsValid())
+            {
+                _ = MainPage.MessageAsync("選択されてないかも？");
+                return false;
+            }
 
 
             var path = Paths[CurrentIndex.BlockIndex];
             if (path.Count <= CurrentIndex.ItemIndex + 1) return false;
             var item = path[CurrentIndex.ItemIndex];
-            // M の時は未対応
-            var next = path[CurrentIndex.ItemIndex + 1];
-
-            if (!item.IsL() || !(next.IsL() || next.IsZ())) return false;
-
-
-            if (next.IsZ())
+            var next = GetNext(path, CurrentIndex.ItemIndex, false, true);
+            var befor = GetNext(path, CurrentIndex.ItemIndex, true, true);
+            if (next == null || befor == null)
             {
-                next = path[0]; // M のはず！
+                _ = MainPage.MessageAsync("前か次がが無い！");
+                return false;
             }
-            var pn = next.GetPoint();
-            SvgPathItem cp = item.CreateRoundCorner(pn);
-            path.Insert(CurrentIndex.ItemIndex + 1, cp);
-            next.SetBefor(cp);
-            cp.SetBefor(item);
 
+            if (item.IsC())
+            {
+                if (!((befor.IsL() || befor.IsM()) && (next.IsL() || next.IsM())))
+                {
+                    _ = MainPage.MessageAsync("Cの前後はLである必要があります。");
+                }
+                return CreateRoundCorner2(path, CurrentIndex.ItemIndex, r);
+            }
+            else if (item.IsL() || (item.IsM() && befor.IsL()))
+            {
+                return CreateRoundCorner(path, CurrentIndex.ItemIndex, r);
+            }
+            else
+            {
+                _ = MainPage.MessageAsync("ここは面取りできません。");
+                return false;
+            }
+        }
+
+
+        internal static bool CreateRoundCorner(List<SvgPathItem> path, int index, float r)
+        {
+            var current = path[index];
+            var next = GetNext(path, index, false, true);
+            var befor = GetNext(path, index, true, true);   // z 以外なら何でも大丈夫
+            var pc = current.GetPoint();
+            var pb = befor.GetPoint();
+            var pn = next.GetPoint();
+
+
+            var a1 = MathF.Atan2(pb.Y - pc.Y, pb.X - pc.X);//傾き
+            var a2 = MathF.Atan2(pn.Y - pc.Y, pn.X - pc.X);//次の線の傾き
+            var a = (a1 + a2) / 2;
+            a = MathF.Abs(a);   // マイナスって無いのでは？
+            if (MathF.Abs(a - a1) > Math.PI)
+            {
+                a -= MathF.PI;
+            }
+
+            float v = MathF.Abs(r / MathF.Tan(a)); // 半径r円の接点の頂点からの距離
+            float l1 = CmUtils.Length(pb, pc); // 自分の線の長さ
+            float l2 = CmUtils.Length(pc, pn); // 次の線の長さ
+            if (l1 < v || l2 < v)
+            {
+                _ = MainPage.MessageAsync("線の長さがRより短い");
+                return false;
+            }
+
+            if (current.IsM())
+            {
+                var l_item = new SvgPathItem('L', befor);       // befor z m l
+                l_item.SetPoint(pc);
+
+                InserItem(path, path.Count - 1, l_item);
+
+                befor = l_item;
+            }
+            else
+            {
+                befor = current;
+            }
+
+
+            var citem = new SvgPathItem('C', befor);
+
+            var x = MathF.Cos(a1) * v;
+            var y = MathF.Sin(a1) * v;
+            var p1 = new Vector2(pc.X + x, pc.Y + y);
+            x = MathF.Cos(a2) * v;
+            y = MathF.Sin(a2) * v;
+            var p2 = new Vector2(pc.X + x, pc.Y + y);
+
+
+            var c = r * 0.5522847f; // 半径rの円弧に近似するためのコントロールポイントの長さ
+
+            x = MathF.Cos(a1 + MathF.PI) * c;
+            y = MathF.Sin(a1 + MathF.PI) * c;
+            var c1 = new Vector2(p1.X + x, p1.Y + y);
+            x = MathF.Cos(a2 + MathF.PI) * c;
+            y = MathF.Sin(a2 + MathF.PI) * c;
+            var c2 = new Vector2(p2.X + x, p2.Y + y);
+
+            var points = new List<Vector2>();
+            points.Add(c1);
+            points.Add(c2);
+            points.Add(p2);
+            citem.SetPoints(points);
+
+            if (current.IsM())
+            {
+                InserItem(path, path.Count - 1, citem);
+            }
+            else
+            {
+                InserItem(path, index + 1, citem);
+            }
+            if (current.IsM())
+            {
+                current.SetPoint(p2);
+                befor.SetPoint(p1);
+            }
+            else
+            {
+                current.SetPoint(p1);
+            }
             return true;
         }
+
+        private static Vector2? CrossPoint(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4)
+        {
+            Vector2 ap1=new Vector2();
+
+            var dev = (p2.Y - p1.Y) * (p4.X - p3.X) - (p2.X - p1.X) * (p4.Y - p3.Y);
+            if (dev == 0)
+            {
+                return null;
+            }
+
+
+            var d1 = (p3.Y * p4.X - p3.X * p4.Y);
+            var d2 = (p1.Y * p2.X - p1.X * p2.Y);
+
+
+            ap1.X = d1 * (p2.X - p1.X) - d2 * (p4.X - p3.X);
+            ap1.X /= dev;
+            ap1.Y = d1 * (p2.Y - p1.Y) - d2 * (p4.Y - p3.Y);
+            ap1.Y /= dev;
+
+            //return isRange(p1 , p2, ap1) ? 1 : 0;
+            return ap1;
+        }
+
+        /// <summary>
+        /// C の面取りをととのえる
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="index"></param>
+        /// <param name="r"></param>
+        /// <returns></returns>
+        internal static bool CreateRoundCorner2(List<SvgPathItem> path, int index, float r)
+        {
+            var current = new PathIt(path, index);
+            var next1 = current.GetNext(PathIt.SearchType.NOT_Z_M, false);
+            var befor0 = current.GetNext(PathIt.SearchType.NOT_Z_M, true);
+            var befor1 = befor0.GetNext(PathIt.SearchType.NOT_Z_M, true);
+
+            var pn0 = current.GetItem().GetPoint();
+            var pn = next1.GetItem().GetPoint();
+
+            var pb = befor1.GetItem().GetPoint();
+            var pb0 = befor0.GetItem().GetPoint();
+
+            var vv = CrossPoint(pb0, pb, pn0, pn);
+            if (vv == null)
+            {
+                _ = MainPage.MessageAsync("交点計算エラー");
+                return false;
+            }
+            var pc = vv.Value;
+            
+
+            var a1 = MathF.Atan2(pb.Y - pb0.Y, pb.X - pb0.X);//傾き
+            var a2 = MathF.Atan2(pn.Y - pn0.Y, pn.X - pn0.X);//次の線の傾き
+            var a = (a1 + a2) / 2;
+            a = MathF.Abs(a);   // マイナスって無いのでは？
+            if (MathF.Abs(a - a1) > Math.PI)
+            {
+                a -= MathF.PI;
+            }
+
+            float v = MathF.Abs(r / MathF.Tan(a)); // 半径r円の接点の頂点からの距離
+            float l1 = CmUtils.Length(pb, pc); // 自分の線の長さ
+            float l2 = CmUtils.Length(pc, pn); // 次の線の長さ
+            if (l1 < v || l2 < v)
+            {
+                _ = MainPage.MessageAsync("線の長さがRより短い");
+                return false;
+            }
+
+            var citem = current.GetItem();
+
+            var x = MathF.Cos(a1) * v;
+            var y = MathF.Sin(a1) * v;
+            var p1 = new Vector2(pc.X + x, pc.Y + y);
+            x = MathF.Cos(a2) * v;
+            y = MathF.Sin(a2) * v;
+            var p2 = new Vector2(pc.X + x, pc.Y + y);
+
+
+            var c = r * 0.5522847f; // 半径rの円弧に近似するためのコントロールポイントの長さ
+
+            x = MathF.Cos(a1 + MathF.PI) * c;
+            y = MathF.Sin(a1 + MathF.PI) * c;
+            var c1 = new Vector2(p1.X + x, p1.Y + y);
+            x = MathF.Cos(a2 + MathF.PI) * c;
+            y = MathF.Sin(a2 + MathF.PI) * c;
+            var c2 = new Vector2(p2.X + x, p2.Y + y);
+
+            var points = new List<Vector2>();
+            points.Add(c1);
+            points.Add(c2);
+            points.Add(p2);
+            citem.SetPoints(points);
+
+            var next = current.GetNext(PathIt.SearchType.NOT_Z, false);
+            if (next.GetItem().IsM())
+            {
+                next.GetItem().SetPoint(p2);
+            }
+            befor0.GetItem().SetPoint(p1);
+            return true;
+        }
+
+        static void InserItem(List<SvgPathItem> path, int index, SvgPathItem item)
+        {
+            if (index > 0)
+            {
+                var cp = path[index - 1];
+                cp.Next = item;
+                item.SetBefor(cp);
+            }
+            var next = path[index];
+            path.Insert(index, item);
+            next.SetBefor(item);
+        }
+
+
 
 
         /// <summary>
@@ -296,9 +518,9 @@ namespace IconEditSvg
             var path = Paths[CurrentIndex.BlockIndex];
             if (path.Count <= CurrentIndex.ItemIndex + 1) return false;
             var item = path[CurrentIndex.ItemIndex];
-            if (!(item.IsC() && CurrentIndex.PartIndex==2)) return false;
+            if (!(item.IsC() && CurrentIndex.PartIndex == 2)) return false;
 
-            return item.RoundCorner(path,CurrentIndex.ItemIndex,step);
+            return item.RoundCorner(path, CurrentIndex.ItemIndex, step);
         }
 
 
@@ -327,7 +549,7 @@ namespace IconEditSvg
                 var m_path = Paths[CurrentIndex.BlockIndex];
                 var item = m_path[CurrentIndex.ItemIndex];
                 item.ValueChange(CurrentIndex.PartIndex, x, y);
-                if (item.IsC() && CurrentIndex.PartIndex==2)
+                if (item.IsC() && CurrentIndex.PartIndex == 2)
                 {
                     int nextindex = CurrentIndex.ItemIndex + 1;
                     if (nextindex >= m_path.Count)
@@ -363,7 +585,8 @@ namespace IconEditSvg
 
             int unit = (int)polygonUnitValue;
             var m_path = Paths[CurrentIndex.BlockIndex];
-            switch (polygonUnitValue) {
+            switch (polygonUnitValue)
+            {
                 case PolygonUnit.unit1:
                 case PolygonUnit.unit2:
                 case PolygonUnit.unit3:
@@ -372,7 +595,8 @@ namespace IconEditSvg
                         return false;
                     break;
             }
-            switch (keyCmd) {
+            switch (keyCmd)
+            {
                 case KeyCommand.Home:
                 case KeyCommand.End:
                 case KeyCommand.PageUp:
@@ -381,9 +605,9 @@ namespace IconEditSvg
                     {
                         if (item.IsC() && CurrentIndex.PartIndex == 2)
                         {
-                            if(keyCmd == KeyCommand.PageUp)
+                            if (keyCmd == KeyCommand.PageUp)
                                 return RoundCorner(1);
-                            else if(keyCmd == KeyCommand.PageDown)
+                            else if (keyCmd == KeyCommand.PageDown)
                                 return RoundCorner(-1);
                             // 面取り
                         }
@@ -395,7 +619,8 @@ namespace IconEditSvg
             bool res = false;
 
             float moveunit = 0.1f;
-            switch (info.MoveUnit) {
+            switch (info.MoveUnit)
+            {
                 case MoveUnitDef.normal:
                     moveunit = 1.0f;
                     break;
@@ -403,7 +628,8 @@ namespace IconEditSvg
                     moveunit = 5.0f;
                     break;
             }
-            if (keyCmd == KeyCommand.PageUp || keyCmd == KeyCommand.PageDown) {
+            if (keyCmd == KeyCommand.PageUp || keyCmd == KeyCommand.PageDown)
+            {
                 moveunit = 1f;
                 switch (info.MoveUnit)
                 {
@@ -477,8 +703,9 @@ namespace IconEditSvg
             {
                 center = CalcCenter(m_path);
             }
-            res = item.PointChange(polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr,center);
-            if (res && polygonUnitValue == PolygonUnit.Symmetry && Paths.Count-1 != CurrentIndex.BlockIndex) {
+            res = item.PointChange(polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr, center);
+            if (res && polygonUnitValue == PolygonUnit.Symmetry && Paths.Count - 1 != CurrentIndex.BlockIndex)
+            {
                 // 線対称
                 int pc = m_path.Count;
                 if (m_path.Count < 2) return res;
@@ -500,7 +727,7 @@ namespace IconEditSvg
                 }
                 else
                 {
-                    ti = ci + (ci-1- CurrentIndex.ItemIndex);
+                    ti = ci + (ci - 1 - CurrentIndex.ItemIndex);
                 }
                 var rulerlist = Paths[Paths.Count - 1];
                 var start = rulerlist[0].GetPoint();
@@ -514,13 +741,66 @@ namespace IconEditSvg
             return res;
         }
 
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="index"></param>
+        /// <param name="befor">前を探す</param>
+        /// <param name="visibleOnly">z を飛ばす</param>
+        /// <returns></returns>
+        private static SvgPathItem GetNext(List<SvgPathItem> path, int index, bool befor, bool visibleOnly)
+        {
+            if (path.Count <= index) return null; // カレントが変！
+
+            SvgPathItem item = null;
+            var step = befor ? -1 : 1;
+            while (true)
+            {
+                index += step;
+                if (index < 0)
+                {
+                    index = path.Count - 1;
+                    item = path[index];
+                    if (!item.IsZ())
+                    {
+                        return null;
+                    }
+                }
+                else if (index >= path.Count) 
+                {
+                    if (!item.IsZ())
+                        return null;
+
+                    index = 0;
+                    item = path[index];
+                }
+                else
+                {
+                    item = path[index];
+                }
+                if (!visibleOnly)
+                {
+                    return item;
+                }
+                else if (!(item.IsZ()))
+                {
+                    return item;
+                }
+            }
+        }
+
+
         int GetNextIndex(List<SvgPathItem> path, int index)
         {
             index++;
-            if (path.Count-1> index) {
+            if (path.Count - 1 > index)
+            {
                 return index;
             }
-            if (path.Count <= index) {
+            if (path.Count <= index)
+            {
                 index = 1;
             }
             var item = path[index];
@@ -539,7 +819,8 @@ namespace IconEditSvg
 
             if (path.Count - 1 == index)
             {
-                if (path[index].IsZ()) {
+                if (path[index].IsZ())
+                {
                     if (IsSameLast(path))
                         return 1;
                     else
@@ -637,7 +918,8 @@ namespace IconEditSvg
             if (Paths == null || Paths.Count == 0) return false;
             for (int i = 0; i < Paths.Count; i++)
             {
-                if (CurrentIndex.IsValid()) {
+                if (CurrentIndex.IsValid())
+                {
                     if (i != CurrentIndex.BlockIndex) continue;
                 }
                 var m_path = Paths[i];
@@ -736,8 +1018,10 @@ namespace IconEditSvg
 
 
                     var item = m_path[index];
-                    if (item.IsM()) {
-                        if (IsSameLast(m_path)) {
+                    if (item.IsM())
+                    {
+                        if (IsSameLast(m_path))
+                        {
                             continue;
                         }
                     }
@@ -791,7 +1075,7 @@ namespace IconEditSvg
                         var a1 = MathF.Atan2(v1.Y, v1.X);
 
 
-                        string text = string.Format("始点({0:0.00},{1:0.00}) 終点({2:0.00},{3:0.00}) 角度({4:0.0}) ",start.X,start.Y,end.X,end.Y,CmUtils.ToAngle(a1));
+                        string text = string.Format("始点({0:0.00},{1:0.00}) 終点({2:0.00},{3:0.00}) 角度({4:0.0}) ", start.X, start.Y, end.X, end.Y, CmUtils.ToAngle(a1));
 
 
                         return text;
@@ -834,7 +1118,8 @@ namespace IconEditSvg
                 }
                 else if (polygonUnitValue == PolygonUnit.RulerOrigin)
                 {
-                    if(RulerVisible){
+                    if (RulerVisible)
+                    {
                         var ruler = Paths[Paths.Count - 1];
                         var v = ruler[0].GetPoint();
 
@@ -845,7 +1130,7 @@ namespace IconEditSvg
                         string text = string.Format("原点：{0:0.0} {1:0.0}", v.X, v.Y);
 
                         var p = item.GetPoint();
-                                                var ofy = p.Y - v.Y;
+                        var ofy = p.Y - v.Y;
                         var ofx = p.X - v.X;
                         float r = MathF.Sqrt(MathF.Pow(ofx, 2) + MathF.Pow(ofy, 2));
 
@@ -854,7 +1139,7 @@ namespace IconEditSvg
                         text += string.Format(" 半径 {0:0.00} 角度 {1:0.00}", r, ToAngle(a));
 
 
-                        return text +info;
+                        return text + info;
                     }
                 }
                 else if (polygonUnitValue != MainPage.PolygonUnit.none)
@@ -863,7 +1148,7 @@ namespace IconEditSvg
                     var count = m_path.Count - 1;
                     if (IsSameLast(m_path))
                         count--;
-                    if (count >= unit*2 && count % 2 == 0)
+                    if (count >= unit * 2 && count % 2 == 0)
                     {
                         var PolygonCenter = CalcCenter(m_path);
                         string text = string.Format("中心：{0:0.0} {1:0.0}", PolygonCenter.X, PolygonCenter.Y);
@@ -883,7 +1168,7 @@ namespace IconEditSvg
 
 
                             var partIndex = CurrentIndex.PartIndex; // 
-                            string info = item.GetInfo(partIndex,true);
+                            string info = item.GetInfo(partIndex, true);
                             text += info;
 
 
@@ -919,9 +1204,10 @@ namespace IconEditSvg
         {
 
             var pathlist = new List<SvgPathItem>();
-            for(int ix=0;ix<Paths.Count;ix++)
+            for (int ix = 0; ix < Paths.Count; ix++)
             {
-                if (RulerEnabled && ix == Paths.Count-1) {
+                if (RulerEnabled && ix == Paths.Count - 1)
+                {
                     break;
                 }
                 var list = Paths[ix];
@@ -1076,7 +1362,8 @@ namespace IconEditSvg
             else
             {
                 var count = Paths.Count;
-                if (RulerVisible) {
+                if (RulerVisible)
+                {
                     count--; // 念のため　表示されてもあまり問題ないけど
                 }
                 for (int bx = 0; bx < count; bx++)
@@ -1096,8 +1383,9 @@ namespace IconEditSvg
 
         internal void DrawCurrentSelectPath(CanvasDrawingSession win2d, ViewInfo info)
         {
-            if (RulerVisible) {
-                var item = Paths[Paths.Count-1][1];
+            if (RulerVisible)
+            {
+                var item = Paths[Paths.Count - 1][1];
                 item.DrawPart(win2d, info);
             }
 
@@ -1111,17 +1399,20 @@ namespace IconEditSvg
         internal static void SetPreviusPoint(List<SvgPathItem> path, int index, Vector2 p1)
         {
             SvgPathItem pre = null;
-            Vector2? pm=null;
+            Vector2? pm = null;
             index--;
-            if (index < 0) {
+            if (index < 0)
+            {
                 index = path.Count - 1;
             }
             pre = path[index];
-            if (pre.IsM()) {
+            if (pre.IsM())
+            {
                 pm = pre.GetPoint();
                 pre.SetPoint(p1);
             }
-            if (pre.IsZ()) {
+            if (pre.IsZ())
+            {
                 index--;
                 pre = path[index];
             }
@@ -1132,7 +1423,8 @@ namespace IconEditSvg
             else
             {
                 var p = pre.GetPoint();
-                if (p == pm) {
+                if (p == pm)
+                {
                     pre.SetPoint(p1);
                 }
             }
@@ -1144,11 +1436,13 @@ namespace IconEditSvg
             var cp = item.GetPoint();
             index++;
             if (index >= path.Count) return;
-            if (index == path.Count - 1) {
+            if (index == path.Count - 1)
+            {
                 item = path[index];
                 if (!item.IsZ()) return;
                 item = path[0];
-                if (cp == item.GetPoint()) {
+                if (cp == item.GetPoint())
+                {
                     item.SetPoint(cp);
                 }
             }
@@ -1156,7 +1450,7 @@ namespace IconEditSvg
 
         internal SvgPathItem GetSelectedItem()
         {
-            if(!CurrentIndex.IsValid())
+            if (!CurrentIndex.IsValid())
                 return null;
 
 
@@ -1176,10 +1470,14 @@ namespace IconEditSvg
 
         internal void DeSelected()
         {
-            if (CurrentIndex.IsValid()) {
+            if (CurrentIndex.IsValid())
+            {
                 CurrentIndex.DeSelected();
             }
         }
+
+
+
 
     }
 }

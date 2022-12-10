@@ -395,6 +395,7 @@ namespace IconEditSvg
 
             var appView = Windows.UI.ViewManagement.ApplicationView.GetForCurrentView();
             appView.Title = "Assets/folder.svg";
+            TargetFolder.Text = "Assets/folder.svg";
 
 
             this.ViewModel = new RecordingViewModel();
@@ -405,6 +406,7 @@ namespace IconEditSvg
             if (path != null)
             {
                 appView.Title = path;
+                TargetFolder.Text = path;
                 Task.Run(async () =>
                 {
                     StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(path);
@@ -1328,40 +1330,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         private async void Button_Click(object sender, RoutedEventArgs e)
         {
-#if false
-            var filePicker = new Windows.Storage.Pickers.FileOpenPicker();
-            filePicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.Thumbnail;
-            filePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
-            filePicker.FileTypeFilter.Add(".png");
-            var file = await filePicker.PickSingleFileAsync();
-            if (file != null) {
-                // Application now has read/write access to all contents in the picked folder
-                // (including other sub-folder contents)
-                try
-                {
-                    var path = file.Path;
-                    path = System.IO.Path.GetDirectoryName(path);
-                    var folder = await StorageFolder.GetFolderFromPathAsync(path);
-                    Windows.Storage.AccessCache.StorageApplicationPermissions.
-                    FutureAccessList.AddOrReplace("PickedFolderToken", folder);
-                    SelectPngFile(file.Path);
-                }
-                catch (Exception ex)
-                {
-
-                    CmUtils.DebugWriteLine(ex.ToString());
-                }
-
-            }
-#else
             var folderPicker = new Windows.Storage.Pickers.FolderPicker();
             folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Desktop;
             folderPicker.FileTypeFilter.Add("*");
 
             {
                 Windows.Storage.StorageFolder folder = await folderPicker.PickSingleFolderAsync();
-
-
                 if (folder != null)
                 {
                     // Application now has read/write access to all contents in the picked folder
@@ -1372,7 +1346,6 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                     ApplicationDataContainer container = ApplicationData.Current.LocalSettings;
                     container.Values["Folder"] = folder.Path;
-
                     _ = ViewModel.UpdateAsync(folder);
                 }
                 else
@@ -1382,7 +1355,6 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
 
             }
-#endif
         }
 
         private void SvgTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
@@ -1464,7 +1436,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             if (e.Pointer.PointerDeviceType == Windows.Devices.Input.PointerDeviceType.Mouse)
             {
                 var properties = e.GetCurrentPoint(MainCanvas).Properties;
-                if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
+                if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased && Info?.TargetPathData!=null)
                 {
                     var selectedItem = Info.TargetPathData.GetSelectedItem();
                     if (selectedItem != null)
@@ -1480,15 +1452,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                     AllRelatedDataUpdate();
                                 }
                             }));
-                            menu.Commands.Add(new UICommand("角丸め", (cmd) =>
-                            {
-                                // クリックされたときに実行したい処理
-                                if (m_viewInfo.TargetPathData.InsRoundCorner())
-                                {
-                                    AllRelatedDataUpdate();
-                                }
-                            }));
                         }
+                        menu.Commands.Add(new UICommand("角丸め", (cmd) =>
+                        {
+                            // クリックされたときに実行したい処理
+                            if (m_viewInfo.TargetPathData.InsRoundCorner(_radius))
+                            {
+                                AllRelatedDataUpdate();
+                            }
+                        }));
                         menu.Commands.Add(new UICommand("削除", (cmd) =>
                         {
                         }));
@@ -2040,7 +2012,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }
         }
 
-        async Task MessageYesNoAsync(string text, Action<bool> action)
+        public static async Task MessageYesNoAsync(string text, Action<bool> action)
         {
             var msg = new ContentDialog();
             msg.Content = text;
@@ -2052,6 +2024,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 action(res == ContentDialogResult.Primary);
             }
         }
+
+        public static async Task MessageAsync(string text)
+        {
+            var msg = new ContentDialog();
+            msg.Content = text;
+            msg.PrimaryButtonText = "OK";
+            var res = await msg.ShowAsync();
+        }
+
 
         private async void SampleTreeView_RightTapped(object sender, RightTappedRoutedEventArgs e)
         {
@@ -2243,7 +2224,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 {
                     var appView = Windows.UI.ViewManagement.ApplicationView.GetForCurrentView();
                     //appView.Title = o.FullPath;
-                    appView.Title = m_viewInfo.FolderPath + " " + m_viewInfo.FileName;
+                    appView.Title = m_viewInfo.FolderPath + " : " + m_viewInfo.FileName;
+        
 
                     PngFile100 = null;
                     PngFile200 = null;
@@ -2278,7 +2260,10 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     OrgImage200.Source = PngFile200;
                     OrgImage200.Width = m_viewInfo.Width;
                     OrgImage200.Height = m_viewInfo.Height;
-                    Magnification.Invalidate();
+
+
+
+                    
 
 
                     svgText.Text = svgdata;
@@ -2295,10 +2280,28 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                     }
 
+                    /*
+                    var i40 = await SampleAsync();
+                    if (i40 != null)
+                    {
+                        Image40.Source = i40;
+                    }
+                    Size size80 = new Size(svgWidth * 2, svgHeight * 2);
+                    var i80 = await this.makeImageFromSvgAsync(size80, size80);
+                    if (i80 != null)
+                    {
+                        Image80.Source = i80;
+                    }
+                    */
+
+                     
+                    //Magnification.Invalidate(); UpdateSvgByText で更新されるはず。
 
                     InvalidateAllCanvas();
 
                     UpdateSvgByText();
+
+                    updateInfo();
 
 
                 }));
@@ -2306,6 +2309,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
 
 
+        }
+
+        private void updateInfo()
+        {
+            //TargetFolder.Text = m_viewInfo.FolderPath + " :  " + m_viewInfo.FileName + "[";
+            TargetFolder.Text = string.Format("{0} : {1} [W:{2} H:{3}]", m_viewInfo.FolderPath, m_viewInfo.FileName, m_viewInfo.Width, m_viewInfo.Height);
         }
 
         async Task ReadPngFile(StorageFile file,bool png2x)
@@ -2481,6 +2490,22 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             }
         }
 
+        private int _radius = 4;
+
+        private async void Chamfer_R_Button_Click(object sender, RoutedEventArgs e) {
+                ChamferRadiusDialog dlg = new ChamferRadiusDialog();
+            dlg.Radius = _radius;
+
+                _ = await dlg.ShowAsync();
+            if (dlg.Success) {
+                _radius = dlg.Radius;
+                ChamferRadiusButton.Content = string.Format("半径:{0}", _radius);
+
+            }
+        }
+
+
+
         private void AppBarZoomOutButton_Click(object sender, RoutedEventArgs e)
         {
             m_viewInfo.Scale -= 2;
@@ -2521,6 +2546,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             m_ref80 = !m_ref80;
             RefCanvas.Invalidate();
         }
+
     }
 
 
@@ -2534,6 +2560,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             return DefaultTemplate;
         }
+
     }
 
     public class SvgEditData

@@ -1,0 +1,27 @@
+﻿<ContentDialog
+    x:Class="IconEditSvg.ChamferRadiusDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:IconEditSvg"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="面取りR"
+    PrimaryButtonText="OK"
+    SecondaryButtonText="キャンセル"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
+    SecondaryButtonClick="ContentDialog_SecondaryButtonClick">
+
+    <StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50"></ColumnDefinition>
+                <ColumnDefinition Width="*"></ColumnDefinition>
+            </Grid.ColumnDefinitions>
+            <TextBlock Height="25" Text="半径:" TextWrapping="Wrap" Grid.Row="0" Grid.Column="0"/>
+            <TextBox x:Name="RadiusText" Height="43" Text="80" TextWrapping="Wrap" Grid.Column="1"/>
+        </Grid>
+
+
+    </StackPanel>
+</ContentDialog>

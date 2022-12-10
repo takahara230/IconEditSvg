@@ -1140,68 +1140,7 @@ namespace IconEditSvg
             beforPoint = befor.GetPoint();
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="pn"></param>
-        /// <returns></returns>
-        internal SvgPathItem CreateRoundCorner(Vector2 pn)
-        {
-            var pc = GetPoint();
-            var pb = befor.GetPoint();
-
-            var a1 = MathF.Atan2(pc.Y - pb.Y, pc.X - pb.X);//傾き
-            var a2 = MathF.Atan2(pn.Y - pc.Y, pn.X - pc.X);//次の線の傾き
-            var a = (a1 + a2) / 2;
-            a = MathF.Abs(a);
-            if (a > MathF.PI)
-            {
-                a -= MathF.PI;
-            }
-
-            float r = 2;
-            float v = 0;
-
-
-            v = r / MathF.Tan(a); // 半径r円の接点の頂点からの距離
-            float l1 = CmUtils.Length(pb, pc); // 自分の線の長さ
-            float l2 = CmUtils.Length(pc, pn); // 次の線の長さ
-            if (l1 < v || l2 < v) return null;
-
-
-            var citem = new SvgPathItem('C', this);
-
-            var x = MathF.Cos(a1) * v;
-            var y = MathF.Sin(a1) * v;
-            var p1 = new Vector2(pc.X - x, pc.Y - y);
-            x = MathF.Cos(a2) * v;
-            y = MathF.Sin(a2) * v;
-            var p2 = new Vector2(pc.X + x, pc.Y + y);
-
-
-            var c = r * 0.5522847f; // 半径rの円弧に近似するためのコントロールポイントの長さ
-
-            x = MathF.Cos(a1) * c;
-            y = MathF.Sin(a1) * c;
-            var c1 = new Vector2(p1.X + x, p1.Y + y);
-            x = MathF.Cos(a2) * c;
-            y = MathF.Sin(a2) * c;
-            var c2 = new Vector2(p2.X - x, p2.Y - y);
-
-            var points = new List<Vector2>();
-            points.Add(c1);
-            points.Add(c2);
-            points.Add(p2);
-            citem.SetPoints(points);
-
-            this.points[0] = p1;
-
-            CmUtils.DebugWriteLine(string.Format("a1:{0:0.00},a2:{1:0.00},vl:{2:0.00},cl:{3:0.00}", CmUtils.ToAngle(a1), CmUtils.ToAngle(a2), v, c));
-
-            return citem;
-        }
-
-        private void SetPoints(List<Vector2> points)
+        internal void SetPoints(List<Vector2> points)
         {
             this.points = points;
         }
