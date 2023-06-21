@@ -1112,6 +1112,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                 using (var ds = renderer.CreateDrawingSession())
                 {
+                    ds.Clear(Color.FromArgb(0, 0, 0, 0));
                     ds.Transform = Matrix3x2.CreateScale((float)(targetSize.Height / orgSize.Height));
                     ds.DrawSvg(doc, targetSize);
                 }
@@ -1216,6 +1217,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
                 using (var ds = renderer.CreateDrawingSession())
                 {
+                    ds.Clear(Color.FromArgb(0,0,0,0));
                     ds.Transform = Matrix3x2.CreateScale((float)(targetSize.Height / orgSize.Height));
                     ds.DrawSvg(doc, targetSize);
                 }
