@@ -124,13 +124,14 @@ namespace IconEditSvg
 
         }
 
-        public Vector2 GetPoint(int partIndex=-1)
+        public Vector2 GetPoint(int partIndex = -1)
         {
 
-            if (partIndex<0) {
+            if (partIndex < 0)
+            {
                 partIndex = points.Count - 1;
             }
-            if (partIndex>=0 && points.Count > partIndex)
+            if (partIndex >= 0 && points.Count > partIndex)
             {
                 return points[partIndex];
             }
@@ -142,7 +143,7 @@ namespace IconEditSvg
             switch (Command)
             {
                 case 'M':
-                    return Color.FromArgb(180,0,255,255);// Colors.Purple;
+                    return Color.FromArgb(180, 0, 255, 255);// Colors.Purple;
                 case 'h':
                 case 'H':
                 case 'v':
@@ -152,7 +153,7 @@ namespace IconEditSvg
                     return Colors.OrangeRed;
                 case 'c':
                 case 'C':
-                    return Color.FromArgb(180,0,255,0);// Colors.Green;
+                    return Color.FromArgb(180, 0, 255, 0);// Colors.Green;
                 case 'a':
                 case 'A':
                     return Colors.HotPink;
@@ -237,7 +238,7 @@ namespace IconEditSvg
             {
                 case 'c':
                 case 'C':
-                    if(partIndex==2)
+                    if (partIndex == 2)
                         ellipse = false;
                     break;
                 default:
@@ -467,9 +468,15 @@ namespace IconEditSvg
                                 points[1] = pc;
 
                                 var next = FindNext();
-                                if (next != null && next.IsM() && next.GetPoint() == po) {
+                                if (next != null && next.IsM() && next.GetPoint() == po)
+                                {
                                     next.SetPoint(p);
                                 }
+                            }
+                            else if (partIndex == 0)
+                            {
+                                var befor = FindBefor();
+                                //if(befor!=null && befor.IsC())
                             }
                             ret = true;
                         }
@@ -482,10 +489,12 @@ namespace IconEditSvg
                         Vector2 p = points[partIndex];
                         p.X += x;
                         p.Y += y;
-                        if (x != 0) {
+                        if (x != 0)
+                        {
                             p.X = MathF.Round(p.X, 1);
                         }
-                        if (y != 0) {
+                        if (y != 0)
+                        {
                             p.Y = MathF.Round(p.Y, 1);
                         }
                         points[partIndex] = p;
@@ -521,10 +530,13 @@ namespace IconEditSvg
                             ControlRotate(1, center, ps, p);
                             // 次のcのコントロールポイント1を補正
                             var nexti = FindNext();
-                            if (nexti != null) {
-                                if (nexti.IsM()) {
+                            if (nexti != null)
+                            {
+                                if (nexti.IsM())
+                                {
                                     nexti.SetPoint(p);
-                                    if (nexti.GetPoint() == ps) {
+                                    if (nexti.GetPoint() == ps)
+                                    {
                                         // 同じだったら
                                         nexti = nexti.Next;
                                     }
@@ -535,7 +547,8 @@ namespace IconEditSvg
                                 }
                             }
                         }
-                        else {
+                        else
+                        {
                             var p = points[partindex];
                             p = CalcRotatePosition(p, center, da, dr);
                             points[partindex] = p;
@@ -564,7 +577,8 @@ namespace IconEditSvg
                 case 'C':
                 case 'c':
                     {
-                        if (partIndex == 0 || partIndex == 1) {
+                        if (partIndex == 0 || partIndex == 1)
+                        {
                             var cp = points[partIndex];
                             cp = CalcRotatePosition2(cp, center, po, pc);
                             points[partIndex] = cp;
@@ -632,7 +646,7 @@ namespace IconEditSvg
 
                                 if (partIndex == 2)
                                 {
-                                    points[0] = CalcSymmetricPoint(item.GetPoint( partIndex), start, end);
+                                    points[0] = CalcSymmetricPoint(item.GetPoint(partIndex), start, end);
                                 }
                                 if (partIndex == 2 || partIndex == 1)
                                 {
@@ -679,7 +693,7 @@ namespace IconEditSvg
                                     }
                                 }
                             }
-                            else if (partIndex == 0) 
+                            else if (partIndex == 0)
                             {
                                 // 相手側の始点制御点の変更　なので、相手側の対象点を自分の次のアイテムの終点制御点へ
                                 var next = this.Next;
@@ -695,12 +709,12 @@ namespace IconEditSvg
                             // itemの次はCで無いとつじつまが合わない
                             var next = item.Next;
                             if (next == null || !next.IsC()) return;
-                            
+
                             {
                                 var v = CalcSymmetricPoint(item.GetPoint(), start, end);
-                                SetPoint(v,2);
+                                SetPoint(v, 2);
                             }
-                            
+
                             {
                                 var v = CalcSymmetricPoint(next.GetPoint(0), start, end);
                                 SetPoint(v, 1);
@@ -781,7 +795,8 @@ namespace IconEditSvg
                                     nexti.ControlRotate(0, center, ps, p);
                                 }
                             }
-                            else if (partIndex == 0) {
+                            else if (partIndex == 0)
+                            {
                                 /*
                                 SvgPathItem item = item0.FindBefor();
                                 Vector2 p = item.GetPoint();
@@ -814,14 +829,16 @@ namespace IconEditSvg
             }
         }
 
-        private SvgPathItem FindBefor()
+        private SvgPathItem FindBefor(bool excludingCtrElement=true)
         {
             var item = befor;
-            if (item == null || item.IsM()) {
+            if (item == null || (excludingCtrElement && item.IsM()))
+            {
                 SvgPathItem last = null;
-                PathCount(ref last);
+                PathCount(ref last,excludingCtrElement);
                 if (item == null) return last;
-                if (item.GetPoint() == last.GetPoint()) {
+                if (item.GetPoint() == last.GetPoint())
+                {
                     return last;
                 }
             }
@@ -842,7 +859,7 @@ namespace IconEditSvg
             }
         }
 
-        internal void MovePos(int partIndex, float x, float y) 
+        internal void MovePos(int partIndex, float x, float y)
         {
             Vector2 p = points[partIndex];
             p.X += x;
@@ -851,27 +868,52 @@ namespace IconEditSvg
 
         }
 
-        internal bool MovePos(int partIndex, Vector2 pos)
+        internal bool MovePos(int partIndex, Vector2 pos, bool forKey = false)
         {
             var p0 = points[partIndex];
-            var x = MathF.Round(pos.X);
-            var y = MathF.Round(pos.Y);
+            var x = pos.X;
+            var y = pos.Y;
+            if (!forKey)
+            {
+                x = MathF.Round(pos.X);
+                y = MathF.Round(pos.Y);
+            }
             x = x - p0.X;
             y = y - p0.Y;
             if (x == 0 && y == 0) return false;
 
             if (IsC())
             {
+                var next = FindNext(true);
                 MovePos(partIndex, x, y);
-                if (partIndex == POS_C_END) {
+                if (partIndex == POS_C_END)
+                {
                     MovePos(POS_C_CONTROLPOINT2, x, y);
-                    var next = this.Next;
-                    if (next.IsC()) {
+                    if (next?.IsC() == true)
+                    {
                         next.MovePos(POS_C_CONTROLPOINT1, x, y);
+                        if (this.Next?.IsZ() == true)
+                        {
+                            var n2 = this.FindNext();
+                            if (n2?.IsM() == true)
+                            {
+                                n2?.MovePos(0, x, y);
+                            }
+                        }
+                    }
+                }
+                else if (!MainPage.CurrentInstance().Info.ControlPointIndependent)
+                {
+                    if (partIndex == POS_C_CONTROLPOINT1)
+                    {
+                        var befor = FindBefor();
+                    }
+                    else
+                    {
                     }
                 }
             }
-            else 
+            else
             {
                 MoveAll(x, y);
             }
@@ -1014,7 +1056,7 @@ namespace IconEditSvg
         /// 
         /// </summary>
         /// <param name="p"></param>
-        internal void SetPoint(Vector2 p,int partIndex=-1)
+        internal void SetPoint(Vector2 p, int partIndex = -1)
         {
             switch (Command)
             {
@@ -1034,7 +1076,8 @@ namespace IconEditSvg
                 case 'c':
                 case 'C':
                     if (partIndex > 2) return;
-                    if (partIndex < 0) {
+                    if (partIndex < 0)
+                    {
                         partIndex = 2;
                     }
                     points[partIndex] = p;
@@ -1065,6 +1108,21 @@ namespace IconEditSvg
         {
             switch (Command)
             {
+                case 'm':
+                case 'M':
+                    {
+                        var b = FindBefor(false);
+                        if (b != null && b.IsZ()) 
+                        {
+                            var bb = b.befor;
+                            var p0 = GetPoint();
+                            var p1 = bb.GetPoint();
+                            if (p1 != p0) {
+                                drawLine(win2d, info, p1, p0);
+                            }
+                        }
+                        break;
+                    }
                 case 'c':
                 case 'C':
                     {
@@ -1108,31 +1166,38 @@ namespace IconEditSvg
                         if (befor != null)
                         {
                             var bp = befor.GetPoint();
-                            bp.X *= info.Scale;
-                            bp.Y *= info.Scale;
-
-
-                            var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(win2d);
-
                             int index = 0;
                             index++;
-                            canvasPathBuilder.BeginFigure(bp);
                             var p0 = points[0];
-                            p0.X *= info.Scale;
-                            p0.Y *= info.Scale;
-
-                            canvasPathBuilder.AddLine(p0);
-
-                            canvasPathBuilder.EndFigure(CanvasFigureLoop.Open);
-
-                            win2d.DrawGeometry(CanvasGeometry.CreatePath(canvasPathBuilder), Colors.HotPink, 1);
-
+                            drawLine(win2d, info, bp, p0);
                         }
                     }
                     break;
 
             }
         }
+
+        private void drawLine(CanvasDrawingSession win2d, ViewInfo info,Vector2 bp,Vector2 p0)
+        {
+            
+            bp.X *= info.Scale;
+            bp.Y *= info.Scale;
+
+
+            var canvasPathBuilder = new Microsoft.Graphics.Canvas.Geometry.CanvasPathBuilder(win2d);
+
+            canvasPathBuilder.BeginFigure(bp);
+            p0.X *= info.Scale;
+            p0.Y *= info.Scale;
+
+            canvasPathBuilder.AddLine(p0);
+
+            canvasPathBuilder.EndFigure(CanvasFigureLoop.Open);
+
+            win2d.DrawGeometry(CanvasGeometry.CreatePath(canvasPathBuilder), Colors.HotPink, 1);
+
+        }
+
 
         internal void SetBefor(SvgPathItem cp)
         {
@@ -1367,7 +1432,7 @@ namespace IconEditSvg
         /// <param name="dr"></param>
         /// <param name="center"></param>
         /// <returns></returns>
-        internal bool PointChange(MainPage.PolygonUnit polygonUnit, int partIndex, float dx, float dy, float da, float dr,Vector2 center)
+        internal bool PointChange(ViewInfo info, MainPage.PolygonUnit polygonUnit, int partIndex, float dx, float dy, float da, float dr, Vector2 center)
         {
             int unit = (int)polygonUnit;
             bool rot = true;
@@ -1388,16 +1453,22 @@ namespace IconEditSvg
             else
             {
                 // 移動
-                ValueChange(partIndex, dx, dy);
+                //ValueChange(partIndex, dx, dy);
+                var p = GetPoint(partIndex);
+                p.X += dx;
+                p.Y += dy;
+                MovePos(partIndex, p, true);
             }
+
             //----------------------------------------------------------
             if (polygonUnit == MainPage.PolygonUnit.Symmetry)
             {
 
             }
-            else if (unit > 0 && polygonUnit!= MainPage.PolygonUnit.RulerOrigin)
+            else if (unit > 0 && polygonUnit != MainPage.PolygonUnit.RulerOrigin)
             {
-                if (IsC() && partIndex != 2) {
+                if (IsC() && partIndex != 2)
+                {
                     var v = CalcCenter();
                     if (v == null) return false;
                     center = v.Value;
@@ -1414,10 +1485,10 @@ namespace IconEditSvg
                     }
                     if (item == this)
                         break;
-                    item.ApplyOtherValue2(this,partIndex,center,(360.0f / count * unit) * cx);
+                    item.ApplyOtherValue2(this, partIndex, center, (360.0f / count * unit) * cx);
                 }
             }
-        
+
             return true;
 
         }
@@ -1435,7 +1506,7 @@ namespace IconEditSvg
             return top;
         }
 
-        int PathCount(ref SvgPathItem last)
+        int PathCount(ref SvgPathItem last,bool excludingCtrElement = true)
         {
             // 先頭を探す
             var top = FindTop();
@@ -1444,12 +1515,13 @@ namespace IconEditSvg
             int count = 1;
             for (; ; )
             {
-                if (last.Next == null || last.Next.IsZ())
+                if (last.Next == null || (excludingCtrElement && last.Next.IsZ()))
                     break;
                 last = last.Next;
                 count++;
             }
-            if (last.Next != null) {
+            if (last.Next != null)
+            {
                 if (top.GetPoint() == last.GetPoint())
                     count--;
             }
@@ -1464,7 +1536,7 @@ namespace IconEditSvg
         {
             // 先頭を探す
             var top = FindTop();
-            SvgPathItem last=null;
+            SvgPathItem last = null;
             int count = PathCount(ref last);
 
             int offset = last.IsC() ? 1 : 0;
@@ -1492,7 +1564,7 @@ namespace IconEditSvg
 
         }
 
-        SvgPathItem FindNext(bool skipSameM=false)
+        SvgPathItem FindNext(bool skipSameM = false)
         {
             if (Next == null) return null;
             if (!Next.IsZ()) return Next;
@@ -1500,7 +1572,8 @@ namespace IconEditSvg
             var top = FindTop();
             var p0 = GetPoint();
             var p1 = top.GetPoint();
-            if (skipSameM && p0==p1) {
+            if (skipSameM && p0 == p1)
+            {
                 return top.Next;
             }
 

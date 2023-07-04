@@ -135,6 +135,7 @@
     <Compile Include="PngFileItem.cs" />
     <Compile Include="SvgPathData.cs" />
     <Compile Include="SvgPathItem.cs" />
+    <Compile Include="UndoData.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">

@@ -39,7 +39,7 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Click="Button_Click" Margin="2,0,2,0">作業フォルダ...</Button>
                     <TextBlock Name="TargetFolder" Text="" Grid.Column="1" Margin="4,4,4,4" VerticalAlignment="Center"/>
-                    
+
                 </Grid>
             </Border>
             <Grid Grid.Row="1">
@@ -69,54 +69,70 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Orientation="Horizontal">
-                        <AppBarButton Label="Accept" Click="AppBarButton_Click">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="Accept"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarButton Label="Switch" Click="RefreshButton_Click">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="Switch"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarSeparator/>
-                        <AppBarButton Label="Save" Click="AppBarSaveButton_Click">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="Save"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarSeparator/>
-                        <AppBarToggleButton Label="Draw" IsChecked="{x:Bind DrawMode,Mode=TwoWay}">
-                            <AppBarToggleButton.Icon>
-                                <SymbolIcon Symbol="Edit"/>
-                            </AppBarToggleButton.Icon>
-                        </AppBarToggleButton>
-                        <AppBarSeparator/>
-                        <ComboBox x:Name="MoveUnitComboBox" ItemsSource="{Binding MoveUnitDictionary}"
+                    <StackPanel Grid.Row="0" Orientation="Vertical">
+                        <StackPanel Orientation="Horizontal">
+                            <AppBarButton Label="Accept" Click="AcceptButton_Click">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="Accept"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton Label="Switch" Click="RefreshButton_Click">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="Switch"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarSeparator/>
+                            <AppBarButton Label="Save" Click="AppBarSaveButton_Click">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="Save"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarSeparator/>
+                            <AppBarToggleButton Label="Draw" IsChecked="{x:Bind DrawMode,Mode=TwoWay}">
+                                <AppBarToggleButton.Icon>
+                                    <SymbolIcon Symbol="Edit"/>
+                                </AppBarToggleButton.Icon>
+                            </AppBarToggleButton>
+                            <AppBarSeparator/>
+                            <AppBarButton Label="Undo" Click="UndoButton_Click" IsEnabled="{x:Bind UndoEnable,Mode=OneWay}">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="Undo"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton Label="Redo" Click="RedoButton_Click" IsEnabled="{x:Bind RedoEnable,Mode=OneWay}">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="Redo"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <AppBarButton Label="ZoomIn" Click="AppBarZoomInButton_Click">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="ZoomIn"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton Label="ZoomOut" Click="AppBarZoomOutButton_Click">
+                                <AppBarButton.Icon>
+                                    <SymbolIcon Symbol="ZoomOUt"/>
+                                </AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarSeparator/>
+                            <ComboBox x:Name="MoveUnitComboBox" ItemsSource="{Binding MoveUnitDictionary}"
                 DisplayMemberPath="Value"
                 SelectedValue="{Binding MoveUnit, Mode=TwoWay}"
                 SelectedValuePath="Key" VerticalAlignment="Center" Width="180"
         />
-                        <AppBarSeparator/>
-                        <ComboBox x:Name="PolygonUnitComboBox" ItemsSource="{Binding PolygonUnitDictionary}"
+                            <AppBarSeparator/>
+                            <ComboBox x:Name="PolygonUnitComboBox" ItemsSource="{Binding PolygonUnitDictionary}"
                 DisplayMemberPath="Value"
                 SelectedValue="{Binding PolygonUnitValue, Mode=TwoWay}"
                 SelectedValuePath="Key" VerticalAlignment="Center" Width="150"
         />
-                        <AppBarSeparator/>
-                        <AppBarButton Label="ZoomIn" Click="AppBarZoomInButton_Click">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="ZoomIn"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarButton Label="ZoomOut" Click="AppBarZoomOutButton_Click">
-                            <AppBarButton.Icon>
-                                <SymbolIcon Symbol="ZoomOUt"/>
-                            </AppBarButton.Icon>
-                        </AppBarButton>
-                        <AppBarSeparator/>
-                        <Button x:Name="ChamferRadiusButton" Grid.Column="0" Click="Chamfer_R_Button_Click" Margin="2,0,2,0">半径:4</Button>
+                            <AppBarSeparator/>
+                            <Button x:Name="ChamferRadiusButton" Grid.Column="0" Click="Chamfer_R_Button_Click" Margin="2,0,2,0">半径:4</Button>
+                            <AppBarSeparator/>
+                            <CheckBox x:Name="ControlPoint" Content="制御点独立" IsChecked="{x:Bind ControlPointIndependent,Mode=TwoWay}"/>
+                        </StackPanel>
                     </StackPanel>
                     <StackPanel Orientation="Vertical" Grid.Row="1">
                         <Grid Height="1" Background="Silver" HorizontalAlignment="Stretch"/>

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Geometry;
 using Windows.Foundation;
@@ -52,16 +53,22 @@ namespace IconEditSvg
             }
             if (currentIndex == 0)
             {
-                var path = paths[blockIndex];
-                if (path.Count >= 3)
+                // Mの非表示判定処理
+                var list = paths[blockIndex];
+                if (list.Count >= 3)
                 {
-                    var item = path[path.Count - 1];
+                    var item = list[list.Count - 1];
                     if (item.IsZ())
                     {
-                        var item2 = path[path.Count - 2];
+                        var item2 = list[list.Count - 2];
                         if (item2.IsC())
                         {
-                            currentIndex = 1;
+                            var m = list[0];
+                            if (m.GetPoint() == item2.GetPoint())
+                            {
+                                // 最後がベジェでベジェの終点とMの位置が同じならMを非表示に
+                                currentIndex = 1;
+                            }
                         }
                     }
                 }
@@ -249,6 +256,41 @@ namespace IconEditSvg
             if (path.Count < 3) return false;
             var item = path[path.Count - 2];
             return item.IsC();
+        }
+
+
+        /// <summary>
+        /// 制御点を対称にする
+        /// </summary>
+        /// <returns></returns>
+        internal bool MakeSymmetrical()
+        {
+            if (Paths.Count <= CurrentIndex.BlockIndex) return false;   // カレントがおかしい
+            var path = Paths[CurrentIndex.BlockIndex];
+            if (path.Count <= CurrentIndex.ItemIndex) return false;
+            var item = path[CurrentIndex.ItemIndex];
+            if (!item.IsC()) return false;
+
+
+            if (CurrentIndex.PartIndex == 2 || CurrentIndex.PartIndex==1) {
+                var next = GetNext(path, CurrentIndex.ItemIndex, false, true);
+                if (next == null || !next.IsC()) {
+                    _ = MainPage.MessageAsync("となりがCと違う");
+                    return false;
+                }
+                var p0 = item.GetPoint(2);
+                var p1 = item.GetPoint(1);  // 制御点
+                //var p2 = next.GetPoint(0);  
+                var x = p0.X + (p0.X - p1.X);
+                var y = p0.Y + (p0.Y - p1.Y);
+
+                MainPage.CurrentInstance()?.UndoReg();
+                next.SetPoint(new Vector2(x, y), 0);
+                return true;
+
+            }
+            
+            return false;
         }
 
 
@@ -703,7 +745,7 @@ namespace IconEditSvg
             {
                 center = CalcCenter(m_path);
             }
-            res = item.PointChange(polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr, center);
+            res = item.PointChange(info, polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr, center);
             if (res && polygonUnitValue == PolygonUnit.Symmetry && Paths.Count - 1 != CurrentIndex.BlockIndex)
             {
                 // 線対称
@@ -733,8 +775,6 @@ namespace IconEditSvg
                 var start = rulerlist[0].GetPoint();
                 var end = rulerlist[1].GetPoint();
                 m_path[ti].ApplyOtherValue(item, CurrentIndex.PartIndex, start, end);
-
-
             }
 
 

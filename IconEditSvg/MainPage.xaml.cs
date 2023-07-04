@@ -44,10 +44,12 @@ using Windows.System;
 namespace IconEditSvg
 {
 
-    public enum ParamIndex { 
-        C_StartControlPoint=0,
-        C_EndControlPoint=1,
-        C_EndPoint=2,};
+    public enum ParamIndex
+    {
+        C_StartControlPoint = 0,
+        C_EndControlPoint = 1,
+        C_EndPoint = 2,
+    };
     public enum KeyCommand { Non, Up, Down, Left, Right, Del, Esc, Tab, PageUp, PageDown, Ins, Home, End };
     public enum MouseEventKind { Press, Move, Release, Double, Non };
     public class Command : ICommand
@@ -88,6 +90,7 @@ namespace IconEditSvg
         public float OffsetX;
         public float OffsetY;
         public SvgPathData TargetPathData;
+        public bool ControlPointIndependent;
 
         public ViewInfo()
         {
@@ -98,6 +101,8 @@ namespace IconEditSvg
             HoverIndex = new SvgPathData.SvgPathIndex();
             PressIndex = null;
             MoveUnit = MainPage.MoveUnitDef.few;
+            ControlPointIndependent = false;
+
 
         }
 
@@ -119,11 +124,55 @@ namespace IconEditSvg
             return Name;
         }
     }
+
+
+
+
     /// <summary>
     /// それ自体で使用できる空白ページまたはフレーム内に移動できる空白ページ。
     /// </summary>
     public sealed partial class MainPage : Page, INotifyPropertyChanged
     {
+        static MainPage _mainPage = null;
+
+        public static MainPage CurrentInstance()
+        {
+            return _mainPage;
+        }
+
+        private List<UndoData> undodata = new List<UndoData>();
+        private int undoindex = 0;
+
+        public void UndoReg(UndoData data=null)
+        {
+            if (undoindex < undodata.Count)
+            {
+                undodata.RemoveRange(undoindex, undodata.Count - undoindex);
+            }
+            if(data==null)
+                undodata.Add(GetUndoRegData());
+            else
+                undodata.Add(data);
+            undoindex = undodata.Count;
+            OnPropertyChanged("UndoEnable");
+            OnPropertyChanged("RedoEnable");
+        }
+
+        private UndoData GetUndoRegData()
+        {
+            var text = m_svgXmlDoc.GetXml();
+
+            SvgPathData.SvgPathIndex index = null;
+            if (Info.TargetPathData != null)
+            {
+                index = new SvgPathData.SvgPathIndex(Info.TargetPathData?.GetCurrentIndex());
+            }
+            return new UndoData(text, index);
+        }
+
+
+
+
         const string key_folder = "Folder";
         const string key_file = "File";
 
@@ -189,11 +238,18 @@ namespace IconEditSvg
         }
 
         public Dictionary<MoveUnitDef, string> MoveUnitDictionary { get; } = new Dictionary<MoveUnitDef, string>();
-        public MoveUnitDef MoveUnit {
+        public MoveUnitDef MoveUnit
+        {
             get { return m_viewInfo.MoveUnit; }
-            set {
+            set
+            {
                 m_viewInfo.MoveUnit = value;
             }
+        }
+
+        public bool ControlPointIndependent {
+            get { return m_viewInfo.ControlPointIndependent; }
+            set { m_viewInfo.ControlPointIndependent = value; } 
         }
 
 
@@ -270,7 +326,6 @@ namespace IconEditSvg
         Vector2 RulerStartPoint;
         Vector2 RulerEndPoint;
 
-        bool _rulerVisible;
 #if false
         bool RulerVisible
         {
@@ -322,7 +377,6 @@ namespace IconEditSvg
 
                     if (m_viewInfo.TargetPathData != null)
                     {
-                        _rulerVisible = false;
                         //                        OnPropertyChanged("RulerVisible");
                         // まぁ選択状態解除みたいな。
                         m_viewInfo.TargetPathData.RulerHide();
@@ -339,6 +393,11 @@ namespace IconEditSvg
                 }
             }
         }
+
+        private bool UndoEnable { get { return undoindex > 0; } }
+        private bool RedoEnable { get { return undoindex < undodata.Count; } }
+
+
 
         private Command _menuCommand;
 
@@ -363,6 +422,8 @@ namespace IconEditSvg
 
         public MainPage()
         {
+            _mainPage = this;
+
             PolygonUnitDictionary.Add(PolygonUnit.none, "非多角形");
             PolygonUnitDictionary.Add(PolygonUnit.unit1, "反復単位(1)");
             PolygonUnitDictionary.Add(PolygonUnit.unit2, "反復単位(2)");
@@ -426,7 +487,7 @@ namespace IconEditSvg
             }
         }
 
-        DateTime zoomtime=DateTime.Now;
+        DateTime zoomtime = DateTime.Now;
 
         private void CoreWindow_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
@@ -660,9 +721,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 {
                     svgWidth = 40;
                     svgHeight = 40;
-                }                
-                
-                
+                }
+
+
                 svgdata = m_svgXmlDoc.GetXml();
 #endif
 
@@ -679,7 +740,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     }
                     Size size80 = new Size(svgWidth * 2, svgHeight * 2);
 
-                    var i80 = await this.makeImageFromSvgAsync(size80,size80);
+                    var i80 = await this.makeImageFromSvgAsync(size80, size80);
                     if (i80 != null)
                     {
                         Image80.Source = i80;
@@ -716,8 +777,6 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 DrawMode = false;
                 if (m_viewInfo.TargetPathData != null)
                 {
-                    _rulerVisible = false;
-                    //                    OnPropertyChanged("RulerVisible");
                     m_viewInfo.TargetPathData.RulerHide();
                 }
                 m_viewInfo.TargetPathData = null;
@@ -889,7 +948,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         {
             var x = m_viewInfo.OffsetX;
             var y = m_viewInfo.OffsetY;
-            if (m_ref80 && PngFile200!=null && OrgImage2xBytes != null) //if (PngFile200 != null)
+            if (m_ref80 && PngFile200 != null && OrgImage2xBytes != null) //if (PngFile200 != null)
             {
 #if false
                 args.DrawingSession.Transform = new Matrix3x2(m_viewInfo.Scale, 0, 0, m_viewInfo.Scale, x, y);
@@ -1144,12 +1203,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                         if (index >= OrgImageBytes.Length) break;
 
                         byte a = OrgImageBytes[index + 3];
-                        
+
 
                         byte r = OrgImageBytes[index + 2];
                         byte g = OrgImageBytes[index + 1];
                         byte b = OrgImageBytes[index + 0];
-                        if (a > 0) {
+                        if (a > 0)
+                        {
                             r = (byte)(r * 255 / a);
                             g = (byte)(g * 255 / a);
                             b = (byte)(b * 255 / a);
@@ -1201,7 +1261,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             WriteableBitmap writeableBitmap;
 
             Size targetSize = new Size(svgWidth, svgHeight);
-            Size orgSize = new Size(svgWidth*2, svgHeight*2);
+            Size orgSize = new Size(svgWidth * 2, svgHeight * 2);
 
 
 
@@ -1213,11 +1273,11 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                                       (float)targetSize.Height,
                                                       96);
                 var doc = CanvasSvgDocument.LoadFromXml(device, svgdata);
-                
+
 
                 using (var ds = renderer.CreateDrawingSession())
                 {
-                    ds.Clear(Color.FromArgb(0,0,0,0));
+                    ds.Clear(Color.FromArgb(0, 0, 0, 0));
                     ds.Transform = Matrix3x2.CreateScale((float)(targetSize.Height / orgSize.Height));
                     ds.DrawSvg(doc, targetSize);
                 }
@@ -1253,11 +1313,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         }
 
 
-        private void AppBarButton_Click(object sender, RoutedEventArgs e)
+        private void AcceptButton_Click(object sender, RoutedEventArgs e)
         {
+            Info.TargetItem = null;
+            Info.TargetPathData = null;
             UpdateEtc(true);
             svgdata = svgText.Text;
             UpdateSvgByText();
+
+            MainCanvas.Invalidate();
         }
 
         void UpdateSvgByText()
@@ -1292,7 +1356,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 {
                     i40 = await SampleAsync();
                     var size = new Size(svgWidth * 2, svgHeight * 2);
-                    i80 = await this.makeImageFromSvgAsync(size,size);
+                    i80 = await this.makeImageFromSvgAsync(size, size);
                 }
                 Magnification.Invalidate();
                 Image40.Source = i40;
@@ -1422,7 +1486,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             // Children were just added to this node, so set HasUnrealizedChildren to false.
             node.HasUnrealizedChildren = false;
         }
-#region イベント
+        #region イベント
 
         private void MainCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -1438,7 +1502,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             if (e.Pointer.PointerDeviceType == Windows.Devices.Input.PointerDeviceType.Mouse)
             {
                 var properties = e.GetCurrentPoint(MainCanvas).Properties;
-                if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased && Info?.TargetPathData!=null)
+                if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased && Info?.TargetPathData != null)
                 {
                     var selectedItem = Info.TargetPathData.GetSelectedItem();
                     if (selectedItem != null)
@@ -1450,6 +1514,16 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             menu.Commands.Add(new UICommand("ベジェに変換", (cmd) =>
                             {
                                 if (Info.TargetPathData.ConvertToCurve())
+                                {
+                                    AllRelatedDataUpdate();
+                                }
+                            }));
+                        }
+                        if (selectedItem.IsC())
+                        {
+                            menu.Commands.Add(new UICommand("制御点を対称に", (cmd) =>
+                            {
+                                if (m_viewInfo.TargetPathData.MakeSymmetrical())
                                 {
                                     AllRelatedDataUpdate();
                                 }
@@ -1492,7 +1566,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     pos.X -= m_viewInfo.OffsetX;
                     pos.Y -= m_viewInfo.OffsetY;
                     Vector2 v = new Vector2((float)pos.X / Info.Scale, (float)pos.Y / Info.Scale);
-                    if (moved || CmUtils.Length(MousePressPoint, new Vector2((float)pos.X, (float)pos.Y)) > 5) {
+                    if (moved || CmUtils.Length(MousePressPoint, new Vector2((float)pos.X, (float)pos.Y)) > 5)
+                    {
                         if (Info.TargetPathData.MovePos(Info.PressIndex, v))
                         {
                             moved = true;
@@ -1595,7 +1670,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 break;
                             }
                     }
-                    if (!invalidate) { 
+                    if (!invalidate)
+                    {
                         // 線上チェック
                     }
 
@@ -1618,6 +1694,8 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         void AllRelatedDataUpdate()
         {
+
+            // Info == m_viewInfo
             List<SvgPathItem> m_path = Info.TargetPathData.GetPathList();
             if (m_path != null && m_path.Count > 0)
             {
@@ -1641,8 +1719,10 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         void PointChange(KeyCommand keyCommand)
         {
+            var undodata = GetUndoRegData();
             if (Info.TargetPathData.PointChange(keyCommand, PolygonUnitValue, Info))
             {
+                UndoReg(undodata);
                 AllRelatedDataUpdate();
             }
 
@@ -1978,7 +2058,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         }
 
 
-#endregion
+        #endregion
         private void SampleTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
         {
             var node = args.InvokedItem as TreeViewNode;
@@ -2007,8 +2087,6 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 }
                 else
                 {
-                    _rulerVisible = false;
-                    //                    OnPropertyChanged("RulerVisible");
                     MainCanvas.Invalidate();
                 }
             }
@@ -2227,7 +2305,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     var appView = Windows.UI.ViewManagement.ApplicationView.GetForCurrentView();
                     //appView.Title = o.FullPath;
                     appView.Title = m_viewInfo.FolderPath + " : " + m_viewInfo.FileName;
-        
+
 
                     PngFile100 = null;
                     PngFile200 = null;
@@ -2246,11 +2324,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     {
                         await ReadPngFile(file1, true);
                     }
-                    if (file1 == null) {
+                    if (file1 == null)
+                    {
                         m_viewInfo.Width = org40Width * 2;
                         m_viewInfo.Height = org40Height * 2;
                     }
-                    if (file0 == null) {
+                    if (file0 == null)
+                    {
                         org40Width = m_viewInfo.Width / 2;
                         org40Height = m_viewInfo.Height / 2;
                     }
@@ -2265,7 +2345,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
 
 
-                    
+
 
 
                     svgText.Text = svgdata;
@@ -2296,7 +2376,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     }
                     */
 
-                     
+
                     //Magnification.Invalidate(); UpdateSvgByText で更新されるはず。
 
                     InvalidateAllCanvas();
@@ -2319,24 +2399,24 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             TargetFolder.Text = string.Format("{0} : {1} [W:{2} H:{3}]", m_viewInfo.FolderPath, m_viewInfo.FileName, m_viewInfo.Width, m_viewInfo.Height);
         }
 
-        async Task ReadPngFile(StorageFile file,bool png2x)
+        async Task ReadPngFile(StorageFile file, bool png2x)
         {
             WriteableBitmap img;
             byte[] bitmapbytes;
 #if true
             BitmapImage bitmap = new BitmapImage();
-                        using (var s = await file.OpenReadAsync())
-                        {
-                            bitmap.SetSource(s);
-                        }
-//                        org40Width = bitmap.PixelWidth;
-//                        org40Height = bitmap.PixelHeight;
-                         img = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
-                        using (var s = await file.OpenReadAsync())
-                        {
-                            img.SetSource(s);
-                            bitmapbytes = img.PixelBuffer.ToArray();
-                        }
+            using (var s = await file.OpenReadAsync())
+            {
+                bitmap.SetSource(s);
+            }
+            //                        org40Width = bitmap.PixelWidth;
+            //                        org40Height = bitmap.PixelHeight;
+            img = new WriteableBitmap(bitmap.PixelWidth, bitmap.PixelHeight);
+            using (var s = await file.OpenReadAsync())
+            {
+                img.SetSource(s);
+                bitmapbytes = img.PixelBuffer.ToArray();
+            }
 
 #else
             using (IRandomAccessStream stream = await file.OpenReadAsync())
@@ -2359,12 +2439,15 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                 pixStream.Write(bitmapbytes, 0, (int)(decoder.OrientedPixelWidth * decoder.OrientedPixelHeight * 4));
             }
 #endif
-            if (png2x) {
+            if (png2x)
+            {
                 OrgImage2xBytes = bitmapbytes;
                 PngFile200 = img;
                 m_viewInfo.Width = img.PixelWidth;
                 m_viewInfo.Height = img.PixelHeight;
-            } else {
+            }
+            else
+            {
                 OrgImageBytes = bitmapbytes;
                 PngFile100 = img;
                 org40Width = img.PixelWidth;
@@ -2379,7 +2462,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             OrgImage100.Opacity = _opacityValue / 100;
             OrgImage200.Opacity = _opacityValue / 100;
             RefCanvas.Opacity = _opacityValue / 100;
-            
+
 
             var o = 100 - _opacityValue;
 
@@ -2439,9 +2522,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             //var childElement = m_svgXmlDoc.CreateElement("path");
             var childElement = m_svgXmlDoc.CreateElementNS("http://www.w3.org/2000/svg", "path");
             childElement.SetAttribute("d", path);
-//            childElement.SetAttribute("stroke", "#000");
-//            childElement.SetAttribute("stroke-width", "2");
-//            childElement.SetAttribute("fill", "none");
+            //            childElement.SetAttribute("stroke", "#000");
+            //            childElement.SetAttribute("stroke-width", "2");
+            //            childElement.SetAttribute("fill", "none");
 
 
             var root = m_svgXmlDoc.DocumentElement;
@@ -2494,12 +2577,14 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         private int _radius = 4;
 
-        private async void Chamfer_R_Button_Click(object sender, RoutedEventArgs e) {
-                ChamferRadiusDialog dlg = new ChamferRadiusDialog();
+        private async void Chamfer_R_Button_Click(object sender, RoutedEventArgs e)
+        {
+            ChamferRadiusDialog dlg = new ChamferRadiusDialog();
             dlg.Radius = _radius;
 
-                _ = await dlg.ShowAsync();
-            if (dlg.Success) {
+            _ = await dlg.ShowAsync();
+            if (dlg.Success)
+            {
                 _radius = dlg.Radius;
                 ChamferRadiusButton.Content = string.Format("半径:{0}", _radius);
 
@@ -2549,6 +2634,74 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             RefCanvas.Invalidate();
         }
 
+        private void ControlPoint_Checked(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void ControlPoint_Unchecked(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void UndoButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (undodata.Count > 0 && undodata.Count >= undoindex)
+            {
+
+                undoindex--;
+                var data = undodata[undoindex];
+
+                var cdata = GetUndoRegData();
+                undodata[undoindex] = cdata;
+
+
+                UpdateEtc(true);
+                svgdata = data.GetSvgText();
+                UpdateSvgByText();
+
+                RestoreHandle(data);
+                MainCanvas.Invalidate();    // ハンドル表示更新
+            }
+            OnPropertyChanged("UndoEnable");
+            OnPropertyChanged("RedoEnable");
+        }
+
+        private void RedoButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (undodata.Count > undoindex)
+            {
+                var data = undodata[undoindex];
+                undodata[undoindex] = GetUndoRegData();
+                undoindex++;
+
+                UpdateEtc(true);
+                svgdata = data.GetSvgText();
+                UpdateSvgByText();
+
+                RestoreHandle(data);
+                MainCanvas.Invalidate();    // ハンドル表示更新
+            }
+
+            OnPropertyChanged("UndoEnable");
+            OnPropertyChanged("RedoEnable");
+        }
+
+        private void RestoreHandle( UndoData data) {
+            var handle = data.GetIndex();
+            if (handle != null)
+            {
+                var folder = new SvgEditData(m_svgXmlDoc?.DocumentElement);
+                var itemsList = folder.GetItems();
+                var item = itemsList[handle.BlockIndex];
+
+                Info.TargetItem = item;
+                Info.TargetPathData = new SvgPathData(item, PolygonUnitValue);
+                Info.TargetPathData.SelectHandle(handle);
+
+            }
+
+        }
     }
 
 
@@ -2565,6 +2718,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
     }
 
+    /// <summary>
+    /// svgデータをXmlElement で保持
+    /// </summary>
     public class SvgEditData
     {
         private string _displayName;
@@ -2719,6 +2875,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             element.SetAttribute("d", path);
         }
+
 
 
     }
