@@ -268,28 +268,51 @@ namespace IconEditSvg
             if (Paths.Count <= CurrentIndex.BlockIndex) return false;   // カレントがおかしい
             var path = Paths[CurrentIndex.BlockIndex];
             if (path.Count <= CurrentIndex.ItemIndex) return false;
-            var item = path[CurrentIndex.ItemIndex];
+
+            var current = new PathIt(path, CurrentIndex.ItemIndex);
+            var item = current.GetItem();
             if (!item.IsC()) return false;
 
 
-            if (CurrentIndex.PartIndex == 2 || CurrentIndex.PartIndex==1) {
-                var next = GetNext(path, CurrentIndex.ItemIndex, false, true);
-                if (next == null || !next.IsC()) {
+
+            if (CurrentIndex.PartIndex == SvgPathItem.POS_C_END || CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT2)
+            {
+                var nextc = current.NextC(false);
+                if (nextc==null)
+                {
                     _ = MainPage.MessageAsync("となりがCと違う");
                     return false;
                 }
-                var p0 = item.GetPoint(2);
-                var p1 = item.GetPoint(1);  // 制御点
-                //var p2 = next.GetPoint(0);  
+                var p0 = item.GetPoint(SvgPathItem.POS_C_END);  // 中点
+                var p1 = item.GetPoint(SvgPathItem.POS_C_CONTROLPOINT2);  // 制御点
                 var x = p0.X + (p0.X - p1.X);
                 var y = p0.Y + (p0.Y - p1.Y);
 
+                var next = nextc.GetItem();
+
                 MainPage.CurrentInstance()?.UndoReg();
-                next.SetPoint(new Vector2(x, y), 0);
+                next.SetPoint(new Vector2(x, y), SvgPathItem.POS_C_CONTROLPOINT1);
                 return true;
 
             }
-            
+            else if (CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT1) {
+                var nextc = current.NextC(true);
+                if (nextc == null)
+                {
+                    _ = MainPage.MessageAsync("となりがCと違う");
+                    return false;
+                }
+                var next = nextc.GetItem();
+                var p0 = next.GetPoint(SvgPathItem.POS_C_END);  // 中点
+                var p1 = item.GetPoint(SvgPathItem.POS_C_CONTROLPOINT1);  // 制御点
+                var x = p0.X + (p0.X - p1.X);
+                var y = p0.Y + (p0.Y - p1.Y);
+
+
+                MainPage.CurrentInstance()?.UndoReg();
+                next.SetPoint(new Vector2(x, y), SvgPathItem.POS_C_CONTROLPOINT2);
+                return true;
+            }
             return false;
         }
 
@@ -832,43 +855,47 @@ namespace IconEditSvg
         }
 
 
-        int GetNextIndex(List<SvgPathItem> path, int index)
+        int GetNextIndex(List<SvgPathItem> path, int index, bool befor, bool visibleOnly)
         {
-            index++;
-            if (path.Count - 1 > index)
-            {
-                return index;
-            }
-            if (path.Count <= index)
-            {
-                index = 1;
-            }
-            var item = path[index];
-            if (item.IsZ())
-            {
-                return 1;
-            }
+            if (path.Count <= index) return -1; // カレントが変！
 
-            return index;
-        }
-
-        int GetNextIndex2(List<SvgPathItem> path, int index)
-        {
-            index++;
-            if (index >= path.Count) return -1;
-
-            if (path.Count - 1 == index)
+            SvgPathItem item = null;
+            var step = befor ? -1 : 1;
+            while (true)
             {
-                if (path[index].IsZ())
+                index += step;
+                if (index < 0)
                 {
-                    if (IsSameLast(path))
-                        return 1;
-                    else
-                        return 0;
+                    index = path.Count - 1;
+                    item = path[index];
+                    if (!item.IsZ())
+                    {
+                        return -1;
+                    }
+                }
+                else if (index >= path.Count)
+                {
+                    if (!item.IsZ())
+                        return -1;
+
+                    index = 0;
+                    item = path[index];
+                }
+                else
+                {
+                    item = path[index];
+                }
+                if (!visibleOnly)
+                {
+                    return index;
+                }
+                else if (!(item.IsZ()))
+                {
+                    return index;
                 }
             }
-            return index;
         }
+
 
 
         /// <summary>

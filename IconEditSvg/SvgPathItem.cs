@@ -13,9 +13,9 @@ namespace IconEditSvg
 {
     public class SvgPathItem
     {
-        static int POS_C_CONTROLPOINT1 = 0;
-        static int POS_C_CONTROLPOINT2 = 1;
-        static int POS_C_END = 2;
+        public static int POS_C_CONTROLPOINT1 = 0;
+        public static int POS_C_CONTROLPOINT2 = 1;
+        public static int POS_C_END = 2;
 
 
         List<Vector2> points;
@@ -829,22 +829,6 @@ namespace IconEditSvg
             }
         }
 
-        private SvgPathItem FindBefor(bool excludingCtrElement=true)
-        {
-            var item = befor;
-            if (item == null || (excludingCtrElement && item.IsM()))
-            {
-                SvgPathItem last = null;
-                PathCount(ref last,excludingCtrElement);
-                if (item == null) return last;
-                if (item.GetPoint() == last.GetPoint())
-                {
-                    return last;
-                }
-            }
-            return item;
-        }
-
         internal void MoveAll(float x, float y)
         {
             if (points != null && points.Count > 0)
@@ -1564,6 +1548,29 @@ namespace IconEditSvg
 
         }
 
+        /// <summary>
+        /// z 関係なく前を探す
+        /// </summary>
+        /// <param name="excludingCtrElement"></param>
+        /// <returns></returns>
+        private SvgPathItem FindBefor(bool excludingCtrElement = true)
+        {
+            var item = befor;
+            if (item == null || (excludingCtrElement && item.IsM()))
+            {
+                SvgPathItem last = null;
+                PathCount(ref last, excludingCtrElement);
+                if (item == null) return last;
+                if (item.GetPoint() == last.GetPoint())
+                {
+                    return last;
+                }
+            }
+            return item;
+        }
+
+
+
         SvgPathItem FindNext(bool skipSameM = false)
         {
             if (Next == null) return null;
@@ -1579,5 +1586,8 @@ namespace IconEditSvg
 
             return top;
         }
+
+
+
     }
 }
