@@ -1662,7 +1662,9 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                     if (m_viewInfo.HoverIndex.IsValid())
                                     {
                                         m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex(m_viewInfo.HoverIndex);
-                                        undodataForMouse =  GetUndoRegData();
+                                        if (!Info.TargetPathData.IsRuler(m_viewInfo.PressIndex)) {
+                                            undodataForMouse = GetUndoRegData();
+                                        }
                                     }
                                     else
                                     {

@@ -1683,8 +1683,14 @@ namespace IconEditSvg
             }
         }
 
+        internal bool IsRuler(SvgPathIndex pressIndex)
+        {
+            if (RulerEnabled && pressIndex.BlockIndex == Paths.Count - 1)
+            {
+                return true;
+            }
 
-
-
+            return false;
+        }
     }
 }
