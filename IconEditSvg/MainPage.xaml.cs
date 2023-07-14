@@ -91,6 +91,7 @@ namespace IconEditSvg
         public float OffsetY;
         public SvgPathData TargetPathData;
         public bool ControlPointIndependent;
+        public int SelectElementIndex = -1;
 
         public ViewInfo()
         {
@@ -140,20 +141,22 @@ namespace IconEditSvg
             return _mainPage;
         }
 
-        private List<UndoData> undodata = new List<UndoData>();
+
+        private UndoData undodataForMouse = null;
+        private List<UndoData> undoList = new List<UndoData>();
         private int undoindex = 0;
 
         public void UndoReg(UndoData data=null)
         {
-            if (undoindex < undodata.Count)
+            if (undoindex < undoList.Count)
             {
-                undodata.RemoveRange(undoindex, undodata.Count - undoindex);
+                undoList.RemoveRange(undoindex, undoList.Count - undoindex);
             }
             if(data==null)
-                undodata.Add(GetUndoRegData());
+                undoList.Add(GetUndoRegData());
             else
-                undodata.Add(data);
-            undoindex = undodata.Count;
+                undoList.Add(data);
+            undoindex = undoList.Count;
             OnPropertyChanged("UndoEnable");
             OnPropertyChanged("RedoEnable");
         }
@@ -167,7 +170,7 @@ namespace IconEditSvg
             {
                 index = new SvgPathData.SvgPathIndex(Info.TargetPathData?.GetCurrentIndex());
             }
-            return new UndoData(text, index);
+            return new UndoData(text,Info.SelectElementIndex, index);
         }
 
 
@@ -395,7 +398,7 @@ namespace IconEditSvg
         }
 
         private bool UndoEnable { get { return undoindex > 0; } }
-        private bool RedoEnable { get { return undoindex < undodata.Count; } }
+        private bool RedoEnable { get { return undoindex < undoList.Count; } }
 
 
 
@@ -1317,6 +1320,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
         {
             Info.TargetItem = null;
             Info.TargetPathData = null;
+            Info.SelectElementIndex = -1;
             UpdateEtc(true);
             svgdata = svgText.Text;
             UpdateSvgByText();
@@ -1507,39 +1511,55 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     var selectedItem = Info.TargetPathData.GetSelectedItem();
                     if (selectedItem != null)
                     {
+                        var isruler = Info.TargetPathData.IsSelectRuler();
 
                         var menu = new PopupMenu();
-                        if (selectedItem.IsL())
+                        if (isruler)
                         {
-                            menu.Commands.Add(new UICommand("ベジェに変換", (cmd) =>
+                            menu.Commands.Add(new UICommand("ルーラー基準に反転", (cmd) =>
                             {
-                                if (Info.TargetPathData.ConvertToCurve())
+                                if (Info.TargetPathData.InvertOnRuler())
                                 {
                                     AllRelatedDataUpdate();
                                 }
                             }));
+
                         }
-                        if (selectedItem.IsC())
+                        else
                         {
-                            menu.Commands.Add(new UICommand("制御点を対称に", (cmd) =>
+
+                            if (selectedItem.IsL())
                             {
-                                if (m_viewInfo.TargetPathData.MakeSymmetrical())
+                                menu.Commands.Add(new UICommand("ベジェに変換", (cmd) =>
                                 {
-                                    AllRelatedDataUpdate();
-                                }
-                            }));
-                        }
-                        menu.Commands.Add(new UICommand("角丸め", (cmd) =>
-                        {
+                                    if (Info.TargetPathData.ConvertToCurve())
+                                    {
+                                        AllRelatedDataUpdate();
+                                    }
+                                }));
+                            }
+                            if (selectedItem.IsC())
+                            {
+                                menu.Commands.Add(new UICommand("制御点を対称に", (cmd) =>
+                                {
+                                    if (m_viewInfo.TargetPathData.MakeSymmetrical())
+                                    {
+                                        AllRelatedDataUpdate();
+                                    }
+                                }));
+                            }
+                            menu.Commands.Add(new UICommand("角丸め", (cmd) =>
+                            {
                             // クリックされたときに実行したい処理
                             if (m_viewInfo.TargetPathData.InsRoundCorner(_radius))
+                                {
+                                    AllRelatedDataUpdate();
+                                }
+                            }));
+                            menu.Commands.Add(new UICommand("削除", (cmd) =>
                             {
-                                AllRelatedDataUpdate();
-                            }
-                        }));
-                        menu.Commands.Add(new UICommand("削除", (cmd) =>
-                        {
-                        }));
+                            }));
+                        }
                         //await menu.ShowForSelectionAsync(GetElementRect(element));
                         var pos = e.GetCurrentPoint(MainCanvas).Position;
                         var pos0 = GetElementRect(MainCanvas);
@@ -1568,7 +1588,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                     Vector2 v = new Vector2((float)pos.X / Info.Scale, (float)pos.Y / Info.Scale);
                     if (moved || CmUtils.Length(MousePressPoint, new Vector2((float)pos.X, (float)pos.Y)) > 5)
                     {
-                        if (Info.TargetPathData.MovePos(Info.PressIndex, v))
+                        if (Info.TargetPathData.MovePos(Info.PressIndex, v,m_viewInfo))
                         {
                             moved = true;
                             AllRelatedDataUpdate();
@@ -1590,11 +1610,12 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
             var ptr = e.Pointer;
             if (ptr.PointerDeviceType == Windows.Devices.Input.PointerDeviceType.Mouse)
             {
+                /*
                 var properties = e.GetCurrentPoint(MainCanvas).Properties;
                 if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
                 {
                     return;
-                }
+                }*/
                 bool invalidate = false;
                 var ptrPt = e.GetCurrentPoint(MainCanvas);// MainCanvas の座標に変換
                 if (m_viewInfo.TargetPathData != null)
@@ -1633,7 +1654,7 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                             }
                         case MouseEventKind.Press:
                             {
-                                if (ptrPt.Properties.IsLeftButtonPressed)
+                                if (ptrPt.Properties.IsLeftButtonPressed || ptrPt.Properties.IsRightButtonPressed)
                                 {
                                     MousePressPoint = new Vector2((float)pos.X, (float)pos.Y);
                                     moved = false;
@@ -1641,11 +1662,13 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                     if (m_viewInfo.HoverIndex.IsValid())
                                     {
                                         m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex(m_viewInfo.HoverIndex);
+                                        undodataForMouse =  GetUndoRegData();
                                     }
                                     else
                                     {
                                         m_viewInfo.PressIndex = new SvgPathData.SvgPathIndex();
                                     }
+                                    
                                 }
                                 break;
                             }
@@ -1660,9 +1683,18 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
                                 else if (Info.TargetPathData.IsSelectHandle())
                                 {
                                     Info.TargetPathData.DeSelected();
+                                    Info.SelectElementIndex = -1;
                                     MainCanvas.Invalidate();
                                     invalidate = true;
                                 }
+                                if (moved) {
+                                    if (undodataForMouse != null)
+                                    {
+                                        UndoReg(undodataForMouse);
+                                    }
+
+                                }
+                                undodataForMouse = null;
                                 m_viewInfo.PressIndex = null;
 
                                 UpdateCordinateInfo();
@@ -2065,9 +2097,22 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
             if (node.Content is SvgEditData item)
             {
+                var roots = sender.RootNodes;
+                int index = 0;
+                foreach (var root in roots) {
+                    foreach (var v in root.Children) {
+                        if (v.Content == item) {
+                            break;
+                        }
+                        index++;
+                    }
+                }
+
+
                 //node.IsExpanded = !node.IsExpanded;
                 m_viewInfo.TargetItem = item;
                 m_viewInfo.TargetPathData = new SvgPathData(item, PolygonUnitValue);
+                m_viewInfo.SelectElementIndex = index;
                 DrawMode = false;
 
                 if (PolygonUnitValue == PolygonUnit.Symmetry)
@@ -2646,14 +2691,14 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         private void UndoButton_Click(object sender, RoutedEventArgs e)
         {
-            if (undodata.Count > 0 && undodata.Count >= undoindex)
+            if (undoList.Count > 0 && undoList.Count >= undoindex)
             {
 
                 undoindex--;
-                var data = undodata[undoindex];
+                var data = undoList[undoindex];
 
                 var cdata = GetUndoRegData();
-                undodata[undoindex] = cdata;
+                undoList[undoindex] = cdata;
 
 
                 UpdateEtc(true);
@@ -2669,10 +2714,10 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         private void RedoButton_Click(object sender, RoutedEventArgs e)
         {
-            if (undodata.Count > undoindex)
+            if (undoList.Count > undoindex)
             {
-                var data = undodata[undoindex];
-                undodata[undoindex] = GetUndoRegData();
+                var data = undoList[undoindex];
+                undoList[undoindex] = GetUndoRegData();
                 undoindex++;
 
                 UpdateEtc(true);
@@ -2689,16 +2734,20 @@ private void CoreWindow_KeyDown(Windows.UI.Core.CoreWindow sender, Windows.UI.Co
 
         private void RestoreHandle( UndoData data) {
             var handle = data.GetIndex();
-            if (handle != null)
+            var elementIndex = data.GetElementIndex();
+            if (handle != null && elementIndex>=0)
             {
                 var folder = new SvgEditData(m_svgXmlDoc?.DocumentElement);
                 var itemsList = folder.GetItems();
-                var item = itemsList[handle.BlockIndex];
+                if (elementIndex < itemsList.Count)
+                {
+                    var item = itemsList[elementIndex];
 
-                Info.TargetItem = item;
-                Info.TargetPathData = new SvgPathData(item, PolygonUnitValue);
-                Info.TargetPathData.SelectHandle(handle);
-
+                    Info.TargetItem = item;
+                    Info.SelectElementIndex = elementIndex;
+                    Info.TargetPathData = new SvgPathData(item, PolygonUnitValue);
+                    Info.TargetPathData.SelectHandle(handle);
+                }
             }
 
         }

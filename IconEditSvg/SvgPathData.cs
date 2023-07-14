@@ -258,12 +258,38 @@ namespace IconEditSvg
             return item.IsC();
         }
 
+        /// <summary>
+        /// 線対称
+        /// </summary>
+        /// <returns></returns>
+        internal bool InvertOnRuler()
+        {
+            if (RulerEnabled) {
+                MainPage.CurrentInstance()?.UndoReg();
+                var ruler = Paths[Paths.Count - 1];
+                var start = ruler[0].GetPoint();
+                var end = ruler[1].GetPoint();
+                for (int index = 0; index < Paths.Count - 1; index++) 
+                {
+                    var list = Paths[index];
+                    foreach (var item in list)
+                    {
+                        item.InvertOnRuler(start,end);
+
+                    }
+
+                }
+                return true;
+            }
+            return false;
+        }
+
 
         /// <summary>
         /// 制御点を対称にする
         /// </summary>
         /// <returns></returns>
-        internal bool MakeSymmetrical()
+        internal bool MakeSymmetrical(bool fromCommand = true)
         {
             if (Paths.Count <= CurrentIndex.BlockIndex) return false;   // カレントがおかしい
             var path = Paths[CurrentIndex.BlockIndex];
@@ -278,7 +304,7 @@ namespace IconEditSvg
             if (CurrentIndex.PartIndex == SvgPathItem.POS_C_END || CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT2)
             {
                 var nextc = current.NextC(false);
-                if (nextc==null)
+                if (nextc == null)
                 {
                     _ = MainPage.MessageAsync("となりがCと違う");
                     return false;
@@ -295,7 +321,8 @@ namespace IconEditSvg
                 return true;
 
             }
-            else if (CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT1) {
+            else if (CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT1)
+            {
                 var nextc = current.NextC(true);
                 if (nextc == null)
                 {
@@ -315,6 +342,29 @@ namespace IconEditSvg
             }
             return false;
         }
+
+        private SvgPathItem FindSymmetricalItem(SvgPathIndex targetIndex)
+        {
+            if (Paths.Count <= targetIndex.BlockIndex) return null;   // カレントがおかしい
+            var path = Paths[targetIndex.BlockIndex];
+            if (path.Count <= targetIndex.ItemIndex) return null;
+
+            var current = new PathIt(path, targetIndex.ItemIndex);
+            var item = current.GetItem();
+            if (!item.IsC()) return null;
+
+
+            if (targetIndex.PartIndex == SvgPathItem.POS_C_END || targetIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT2)
+            {
+                return current.NextC(false)?.GetItem();
+            }
+            else if (targetIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT1)
+            {
+                return current.NextC(true)?.GetItem();
+            }
+            return null;
+        }
+
 
 
         /// <summary>
@@ -451,7 +501,7 @@ namespace IconEditSvg
 
         private static Vector2? CrossPoint(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4)
         {
-            Vector2 ap1=new Vector2();
+            Vector2 ap1 = new Vector2();
 
             var dev = (p2.Y - p1.Y) * (p4.X - p3.X) - (p2.X - p1.X) * (p4.Y - p3.Y);
             if (dev == 0)
@@ -500,7 +550,7 @@ namespace IconEditSvg
                 return false;
             }
             var pc = vv.Value;
-            
+
 
             var a1 = MathF.Atan2(pb.Y - pb0.Y, pb.X - pb0.X);//傾き
             var a2 = MathF.Atan2(pn.Y - pn0.Y, pn.X - pn0.X);//次の線の傾き
@@ -589,7 +639,7 @@ namespace IconEditSvg
         }
 
 
-        private SvgPathItem GetItem(SvgPathIndex currentIndex)
+        internal SvgPathItem GetItem(SvgPathIndex currentIndex)
         {
             if (!CurrentIndex.IsValid()) return null;
 
@@ -642,7 +692,13 @@ namespace IconEditSvg
             return false;
         }
 
-
+        /// <summary>
+        /// キーボード操作
+        /// </summary>
+        /// <param name="keyCmd"></param>
+        /// <param name="polygonUnitValue"></param>
+        /// <param name="info"></param>
+        /// <returns></returns>
         internal bool PointChange(KeyCommand keyCmd, PolygonUnit polygonUnitValue, ViewInfo info)
         {
             var item = GetItem(CurrentIndex);
@@ -768,6 +824,9 @@ namespace IconEditSvg
             {
                 center = CalcCenter(m_path);
             }
+            var oldp = item.GetPoint(CurrentIndex.PartIndex);
+            var next = FindSymmetricalItem(CurrentIndex);
+            // ↓↓ここで位置変更
             res = item.PointChange(info, polygonUnitValue, CurrentIndex.PartIndex, dx, dy, da, dr, center);
             if (res && polygonUnitValue == PolygonUnit.Symmetry && Paths.Count - 1 != CurrentIndex.BlockIndex)
             {
@@ -799,9 +858,43 @@ namespace IconEditSvg
                 var end = rulerlist[1].GetPoint();
                 m_path[ti].ApplyOtherValue(item, CurrentIndex.PartIndex, start, end);
             }
-
-
+            else if (res && !info.ControlPointIndependent && next != null)
+            {
+                if (item.IsC() && CurrentIndex.PartIndex != SvgPathItem.POS_C_END)
+                {
+                    if (CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT1)
+                    {
+                        if (IsSymmetry(next.GetPoint(SvgPathItem.POS_C_END), next.GetPoint(SvgPathItem.POS_C_CONTROLPOINT2), oldp))
+                        {
+                            var p0 = next.GetPoint(SvgPathItem.POS_C_END);  // 中点
+                            var p1 = item.GetPoint(SvgPathItem.POS_C_CONTROLPOINT1);  // 制御点
+                            var x = p0.X + (p0.X - p1.X);
+                            var y = p0.Y + (p0.Y - p1.Y);
+                            next.SetPoint(new Vector2(x, y), SvgPathItem.POS_C_CONTROLPOINT2);
+                        }
+                    }
+                    else
+                    {
+                        if (IsSymmetry(item.GetPoint(SvgPathItem.POS_C_END), next.GetPoint(SvgPathItem.POS_C_CONTROLPOINT1), oldp))
+                        {
+                            var p0 = item.GetPoint(SvgPathItem.POS_C_END);  // 中点
+                            var p1 = item.GetPoint(SvgPathItem.POS_C_CONTROLPOINT2);  // 制御点
+                            var x = p0.X + (p0.X - p1.X);
+                            var y = p0.Y + (p0.Y - p1.Y);
+                            next.SetPoint(new Vector2(x, y), SvgPathItem.POS_C_CONTROLPOINT1);
+                        }
+                    }
+                }
+            }
             return res;
+        }
+
+        private bool IsSymmetry(Vector2 p0, Vector2 p1, Vector2 p2)
+        {
+            if (p1.X == p0.X - (p2.X - p0.X) && p1.Y == p0.Y - (p2.Y - p0.Y))
+                return true;
+
+            return false;
         }
 
 
@@ -831,7 +924,7 @@ namespace IconEditSvg
                         return null;
                     }
                 }
-                else if (index >= path.Count) 
+                else if (index >= path.Count)
                 {
                     if (!item.IsZ())
                         return null;
@@ -999,10 +1092,49 @@ namespace IconEditSvg
             return true;
         }
 
-        internal bool MovePos(SvgPathIndex pressIndex, Vector2 pos)
+
+        /// <summary>
+        /// マウスによる移動
+        /// </summary>
+        /// <param name="pressIndex"></param>
+        /// <param name="pos"></param>
+        /// <returns></returns>
+        internal bool MovePos(SvgPathIndex pressIndex, Vector2 pos, ViewInfo info)
         {
             var item = Paths[pressIndex.BlockIndex][pressIndex.ItemIndex];
-            return item.MovePos(pressIndex.PartIndex, pos);
+            var oldp = item.GetPoint(CurrentIndex.PartIndex);
+            var res = item.MovePos(pressIndex.PartIndex, pos);
+            if (res && !info.ControlPointIndependent && item.IsC() && pressIndex.PartIndex != SvgPathItem.POS_C_END)
+            {
+                var next = FindSymmetricalItem(pressIndex);
+                if (next == null)
+                    return false;
+                if (CurrentIndex.PartIndex == SvgPathItem.POS_C_CONTROLPOINT1)
+                {
+                    if (IsSymmetry(next.GetPoint(SvgPathItem.POS_C_END), next.GetPoint(SvgPathItem.POS_C_CONTROLPOINT2), oldp))
+                    {
+                        var p0 = next.GetPoint(SvgPathItem.POS_C_END);  // 中点
+                        var p1 = item.GetPoint(SvgPathItem.POS_C_CONTROLPOINT1);  // 制御点
+                        var x = p0.X + (p0.X - p1.X);
+                        var y = p0.Y + (p0.Y - p1.Y);
+                        next.SetPoint(new Vector2(x, y), SvgPathItem.POS_C_CONTROLPOINT2);
+                    }
+                }
+                else
+                {
+                    if (IsSymmetry(item.GetPoint(SvgPathItem.POS_C_END), next.GetPoint(SvgPathItem.POS_C_CONTROLPOINT1), oldp))
+                    {
+                        var p0 = item.GetPoint(SvgPathItem.POS_C_END);  // 中点
+                        var p1 = item.GetPoint(SvgPathItem.POS_C_CONTROLPOINT2);  // 制御点
+                        var x = p0.X + (p0.X - p1.X);
+                        var y = p0.Y + (p0.Y - p1.Y);
+                        next.SetPoint(new Vector2(x, y), SvgPathItem.POS_C_CONTROLPOINT1);
+                    }
+                }
+
+            }
+
+            return res;
         }
 
 
@@ -1523,6 +1655,14 @@ namespace IconEditSvg
 
             var path = Paths[CurrentIndex.BlockIndex];
             return path[CurrentIndex.ItemIndex];
+        }
+
+        internal bool IsSelectRuler()
+        {
+            if (RulerEnabled) {
+                return CurrentIndex.BlockIndex == (Paths.Count - 1);
+            }
+            return false;
         }
 
         internal bool ConvertToCurve()

@@ -760,7 +760,13 @@ namespace IconEditSvg
         }
 
 
-
+        internal void InvertOnRuler(Vector2 start, Vector2 end)
+        {
+            for (int i = 0; i < points.Count; i++) {
+                var p = CalcSymmetricPoint(points[i], start, end);
+                points[i] = p;
+            }
+        }
 
         /// <summary>
         /// 現在の座標を指定されたいテムを指定した角度回転した値にセット。
